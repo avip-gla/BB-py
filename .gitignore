@@ -1,0 +1,23 @@
+# Excel model files (large binaries)
+*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Conda/virtual environments
+.conda/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Claude Code
+.claude/
+CLAUDE.md

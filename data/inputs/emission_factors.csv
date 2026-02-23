@@ -1,0 +1,11 @@
+fuel_type,kg_co2_per_unit,unit
+Aviation Gasoline,8.31,gallon
+Biodiesel (100%),9.45,gallon
+Compressed Natural Gas (CNG),0.05444,scf
+Diesel Fuel,10.21,gallon
+Ethanol (100%),5.75,gallon
+Kerosene-Type Jet Fuel,9.75,gallon
+Liquefied Natural Gas (LNG),4.5,gallon
+Liquefied Petroleum Gases (LPG),5.68,gallon
+Motor Gasoline,8.78,gallon
+Residual Fuel Oil,11.27,gallon

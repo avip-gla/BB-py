@@ -1,0 +1,2 @@
+ng_emission_factor_kg_co2_per_mmbtu,ng_emission_factor_mt_co2_per_mmbtu,mwh_per_mmbtu,ldv_share,hdv_share,kwh_per_gallon_gasoline,gasoline_mmbtu_per_gallon,diesel_mmbtu_per_gallon,ethanol_mmbtu_per_gallon,electricity_mmbtu_per_mwh
+53.06,0.05306,0.3,0.9,0.1,33.7,0.120214,0.137381,0.08043,3.412
