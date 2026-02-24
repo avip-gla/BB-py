@@ -171,6 +171,44 @@ Atlanta 2027 transport emissions across all 3 versions:
 
 The 1.5% v3-vs-Excel difference (23,567 MT CO2) is fully explained by a confirmed Excel bug: Transport R21 references diesel VMT (E46) instead of flex VMT (E47) for car flex-fuel consumption.
 
+## GitHub Setup
+
+### 1. Install Homebrew (macOS package manager)
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Follow the on-screen instructions (requires sudo password). After installation, add Homebrew to your PATH if prompted.
+
+### 2. Install GitHub CLI
+
+```bash
+brew install gh
+```
+
+### 3. Authenticate with GitHub
+
+```bash
+gh auth login
+```
+
+Select **GitHub.com**, **HTTPS**, and follow the browser-based login flow.
+
+### 4. Create the repository and push
+
+```bash
+gh repo create IAM-py --private --source=. --push
+```
+
+This creates a private repo on GitHub, sets it as the remote, and pushes the current branch.
+
+To push subsequent commits:
+
+```bash
+git push
+```
+
 ## Project Structure
 
 ```
