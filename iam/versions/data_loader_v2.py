@@ -17,7 +17,6 @@ from typing import Dict, Optional
 from iam.config import (
     INPUTS_DIR, AEO_DIR, CITIES_DIR, ELECTRICITY_DIR, NG_DIR,
     CITY_REGION_MAP, CITY_STATE_MAP, PROJECTION_YEARS,
-    CITY_AEO_SALES_REGION_MAP,
 )
 
 
@@ -350,23 +349,16 @@ def get_carbon_intensity(region: str, year: int,
 
 
 def get_mpg(vehicle_type: str, year: int,
-            mpg_df: Optional[pd.DataFrame] = None,
-            vehicle_class: Optional[str] = None) -> float:
+            mpg_df: Optional[pd.DataFrame] = None) -> float:
     """Look up MPG for a vehicle type and year.
 
     Source: Excel 'AEO' tab R5-R36.
-    Excel formula references: AEO!E9 (Gasoline ICE Cars), AEO!E24 (Gasoline ICE Trucks).
-
-    The AEO MPG table has duplicate vehicle_type names for car and truck rows
-    (e.g., "Gasoline ICE Vehicles" appears for both cars and light trucks).
-    Use the vehicle_class parameter to disambiguate.
+    Excel formula references like: AEO!E9 (Gasoline ICE Cars), AEO!E24 (Gasoline ICE Trucks).
 
     Args:
         vehicle_type: AEO vehicle type label (e.g., 'Gasoline ICE Vehicles').
         year: Target year.
         mpg_df: Optional pre-loaded MPG DataFrame.
-        vehicle_class: 'car' or 'truck' to disambiguate duplicate vehicle_type names.
-            If None, returns the first match (car by default).
 
     Returns:
         Miles per gallon (or MPGe for electric vehicles).
@@ -374,81 +366,13 @@ def get_mpg(vehicle_type: str, year: int,
     if mpg_df is None:
         mpg_df = load_aeo_mpg()
 
-    if vehicle_class is not None and "vehicle_class" in mpg_df.columns:
-        row = mpg_df[
-            (mpg_df["vehicle_type"] == vehicle_type) &
-            (mpg_df["vehicle_class"] == vehicle_class)
-        ]
-    else:
-        row = mpg_df[mpg_df["vehicle_type"] == vehicle_type]
-
+    row = mpg_df[mpg_df["vehicle_type"] == vehicle_type]
     if row.empty:
-        raise ValueError(
-            f"Vehicle type '{vehicle_type}' (class={vehicle_class}) not found in AEO MPG data"
-        )
+        raise ValueError(f"Vehicle type '{vehicle_type}' not found in AEO MPG data")
 
     col = f"y{year}"
     if col not in row.columns:
         raise ValueError(f"Year {year} not found in AEO MPG data")
-
-    return float(row[col].iloc[0])
-
-
-def load_aeo_ldv_sales_shares(path: Optional[str] = None) -> pd.DataFrame:
-    """Load AEO Light-Duty Vehicle sales shares (car vs. truck fraction).
-
-    Source: Excel 'AEO' tab R101-R107.
-    Provides the fraction of LDV sales that are cars vs. pick-up trucks,
-    by AEO census division (South Atlantic, Middle Atlantic) and year.
-
-    Used in transport fuel consumption to split LDV VMT between car and truck
-    categories, which have different MPG values.
-
-    Args:
-        path: Optional path override. Defaults to data/aeo/aeo_ldv_sales_shares.csv.
-
-    Returns:
-        DataFrame with columns: region, vehicle_type, y2024, y2025, ..., y2050.
-    """
-    if path is None:
-        path = AEO_DIR / "aeo_ldv_sales_shares.csv"
-    return pd.read_csv(path)
-
-
-def get_ldv_sales_share(
-    region: str,
-    vehicle_type: str,
-    year: int,
-    sales_df: Optional[pd.DataFrame] = None,
-) -> float:
-    """Look up car or truck LDV sales share for a region and year.
-
-    Source: Excel 'AEO' tab R103 (South Atlantic Cars), R104 (SA Trucks),
-    R106 (Middle Atlantic Cars), R107 (MA Trucks).
-
-    Args:
-        region: AEO sales region ('South Atlantic' or 'Middle Atlantic').
-        vehicle_type: 'Cars' or 'Pick Up Trucks'.
-        year: Target year.
-        sales_df: Optional pre-loaded sales shares DataFrame.
-
-    Returns:
-        Fraction (0-1) of LDV sales for this vehicle type in this region/year.
-    """
-    if sales_df is None:
-        sales_df = load_aeo_ldv_sales_shares()
-
-    row = sales_df[
-        (sales_df["region"] == region) & (sales_df["vehicle_type"] == vehicle_type)
-    ]
-    if row.empty:
-        raise ValueError(
-            f"LDV sales share not found for region='{region}', type='{vehicle_type}'"
-        )
-
-    col = f"y{year}"
-    if col not in row.columns:
-        raise ValueError(f"Year {year} not found in LDV sales shares data")
 
     return float(row[col].iloc[0])
 
@@ -468,7 +392,6 @@ def load_all_data() -> dict:
         "aeo_ci": load_aeo_carbon_intensity(),
         "aeo_mpg": load_aeo_mpg(),
         "aeo_freight": load_aeo_freight_efficiency(),
-        "aeo_ldv_sales": load_aeo_ldv_sales_shares(),
         "fhwa_vmt": load_fhwa_vmt(),
         "afdc_shares": load_afdc_vehicle_shares(),
         "buildings_emissions": load_buildings_emissions(),

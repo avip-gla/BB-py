@@ -159,38 +159,13 @@ CITY_STATE_MAP: dict = {
     "St. Louis": "Missouri",
 }
 
-# City-to-AEO LDV sales region mapping
-# Source: Excel 'AEO' tab R101-R107.
-# The AEO provides car/truck LDV sales shares by census division.
-# Cities are mapped to either "South Atlantic" or "Middle Atlantic" based on
-# their geographic location. Used in transport fuel consumption to determine
-# the car vs. truck fraction within LDV VMT.
-CITY_AEO_SALES_REGION_MAP: dict = {
-    "Akron": "Middle Atlantic",
-    "Atlanta": "South Atlantic",
-    "Birmingham": "South Atlantic",
-    "Buffalo": "Middle Atlantic",
-    "Charlotte": "South Atlantic",
-    "Chattanooga": "South Atlantic",
-    "Cincinnati": "Middle Atlantic",
-    "Cleveland": "Middle Atlantic",
-    "Columbus": "Middle Atlantic",
-    "Dayton": "Middle Atlantic",
-    "Hampton": "South Atlantic",
-    "Jackson": "South Atlantic",
-    "Kansas City": "Middle Atlantic",
-    "Lansing": "Middle Atlantic",
-    "Memphis": "South Atlantic",
-    "Montgomery": "South Atlantic",
-    "Nashville": "South Atlantic",
-    "Newport News": "South Atlantic",
-    "Oakland": "Middle Atlantic",
-    "Philadelphia": "Middle Atlantic",
-    "Pittsburgh": "Middle Atlantic",
-    "Raleigh": "South Atlantic",
-    "Rochester": "Middle Atlantic",
-    "Savannah": "South Atlantic",
-    "St. Louis": "Middle Atlantic",
+# Fallback mapping for transport electricity carbon intensity lookups.
+# Some city regions (e.g. SPPC — Southwest Power Pool Central) are not in
+# the AEO carbon intensity extraction (only 11 of 12 regions were extracted).
+# Map missing regions to the nearest available AEO region.
+# Source: SPPC and MISC both cover the Missouri/Kansas area.
+TRANSPORT_CI_REGION_FALLBACK: dict = {
+    "SPPC": "MISC",
 }
 
 # All 25 city names

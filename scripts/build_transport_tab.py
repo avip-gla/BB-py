@@ -17,9 +17,9 @@ from openpyxl.utils import get_column_letter
 
 from iam.config import (
     CITIES, CITY_REGION_MAP, CITY_STATE_MAP,
-    PROJECTION_YEARS, BASE_YEAR, TRANSPORT_CI_REGION_FALLBACK,
+    PROJECTION_YEARS, BASE_YEAR, CITY_AEO_SALES_REGION_MAP,
 )
-from iam.data_loader import load_all_data, get_carbon_intensity
+from iam.data_loader import load_all_data, get_carbon_intensity, get_ldv_sales_share
 from iam.city import City
 from iam.transport import (
     calculate_initial_vmt_by_fuel, project_vmt,
@@ -49,12 +49,20 @@ def compute_all_cities(all_data: dict) -> dict:
                 "plugin_hybrid": year_row["vmt_plugin_hybrid"],
                 "electric_hybrid": year_row["vmt_electric_hybrid"],
             }
+            sales_region = CITY_AEO_SALES_REGION_MAP.get(name, "South Atlantic")
+            car_fraction = get_ldv_sales_share(
+                sales_region, "Cars", yr, all_data["aeo_ldv_sales"]
+            )
+            truck_fraction = get_ldv_sales_share(
+                sales_region, "Pick Up Trucks", yr, all_data["aeo_ldv_sales"]
+            )
             fuel = calculate_fuel_consumption(
                 vmt_by_fuel, yr, all_data["aeo_mpg"],
+                car_fraction=car_fraction,
+                truck_fraction=truck_fraction,
                 aeo_freight=all_data["aeo_freight"],
             )
-            ci_region = TRANSPORT_CI_REGION_FALLBACK.get(city.region, city.region)
-            ci = get_carbon_intensity(ci_region, yr, all_data["aeo_ci"])
+            ci = get_carbon_intensity(city.region, yr, all_data["aeo_ci"])
             emissions = calculate_transport_emissions(fuel, ci)
             by_year[yr] = {
                 "vmt_by_fuel": vmt_by_fuel,
@@ -142,15 +150,15 @@ def build_tab(wb: openpyxl.Workbook, city_results: dict) -> None:
         ("CHANGE 3 — Region-specific carbon intensity",
          "Old: SRSE (Atlanta's region) carbon intensity for electricity emissions. "
          "New: Each city uses its own AEO electricity market region CI. "
-         "(SPPC falls back to MISC — both cover Missouri/Kansas.)"),
+         "SPPC data now available directly from AEO."),
+        ("CHANGE 4 — Car/truck MPG split",
+         "Old: Same MPG for cars and trucks, hardcoded 0.42/0.58 fraction. "
+         "New: Car MPG from AEO R9, truck MPG from AEO R24. Car/truck fraction "
+         "from AEO LDV sales shares (R103-R107) by region and year."),
         ("UNCHANGED — VMT growth rates",
          "AEO 2025 Table 41 growth rates per fuel type remain the same for all cities (national rates)."),
-        ("UNCHANGED — MPG and emission factors",
-         "AEO MPG projections and EPA emission factors (kg CO2/unit) are unchanged."),
-        ("KNOWN APPROXIMATION — Car/truck MPG split",
-         "Car and truck use the same MPG value (vs. Excel which uses separate AEO rows R9/R24). "
-         "Car/truck fraction hardcoded at 0.42/0.58 vs AEO regional lookup. "
-         "Causes ~8% gap vs Excel for Atlanta."),
+        ("UNCHANGED — Emission factors",
+         "EPA emission factors (kg CO2/unit) are unchanged."),
     ]
     for label, desc in changes:
         ws[f"A{r}"] = label
@@ -184,11 +192,7 @@ def build_tab(wb: openpyxl.Workbook, city_results: dict) -> None:
         ws.cell(row=r, column=3, value=cr["region"])
         c = ws.cell(row=r, column=4, value=cr["total_vmt_base"])
         c.number_format = "#,##0"
-        ci_region = TRANSPORT_CI_REGION_FALLBACK.get(cr["region"], cr["region"])
-        c5 = ws.cell(row=r, column=5, value=ci_region)
-        if ci_region != cr["region"]:
-            c5.font = change_font
-            c5.fill = change_fill
+        ws.cell(row=r, column=5, value=cr["region"])
         r += 1
 
     r += 1

@@ -143,8 +143,7 @@ def calculate_fuel_consumption(
     vmt_by_fuel: dict,
     year: int,
     aeo_mpg: pd.DataFrame,
-    car_fraction: float,
-    truck_fraction: float,
+    aeo_ldv_sales: Optional[pd.DataFrame] = None,
     aeo_freight: Optional[pd.DataFrame] = None,
 ) -> dict:
     """Convert VMT to fuel consumption (gallons or MWh) for each fuel type.
@@ -155,32 +154,30 @@ def calculate_fuel_consumption(
     vehicle categories: Car, Pick Up Truck, and Freight Trucking.
 
     Excel formulas (using gasoline as example):
-      Car gasoline (R20): =E45 * $F53 * AEO!E103 / AEO!E9
-      Truck gasoline (R26): =E45 * $F53 * AEO!E104 / AEO!E24
-      Freight gasoline (R33): =E45 * $F$54 / AEO!E155
+      Car gasoline (R20): =VMT_gasoline * LDV_share * car_fraction / car_mpg
+      Truck gasoline (R26): =VMT_gasoline * LDV_share * truck_fraction / truck_mpg
+      Freight gasoline (R33): =VMT_gasoline * HDV_share / freight_mpg
 
     Where:
-      - $F53 = LDV_share = 0.9 (Transport R53)
-      - $F54 = HDV_share = 0.1 (Transport R54)
-      - AEO!E103 = car sales share by region and year
-      - AEO!E104 = truck sales share by region and year
-      - AEO!E9 = car gasoline MPG (AEO R9)
-      - AEO!E24 = truck gasoline MPG (AEO R24)
-      - AEO!E155 = freight gasoline efficiency
+      - LDV_share = 0.9 (Transport R53)
+      - HDV_share = 0.1 (Transport R54)
+      - car_fraction = AEO!R103 (South Atlantic car sales share)
+      - truck_fraction = AEO!R104 (South Atlantic truck sales share)
+      - car_mpg = AEO MPG table for that vehicle type
+      - freight_mpg = AEO freight efficiency table
 
     Total gasoline (R13) = car + truck + freight gasoline consumption
 
     Assumptions:
       - LDV/HDV split is fixed at 90/10 for all cities
-      - Car/truck split within LDV uses AEO regional sales shares (dynamic by year)
-      - Car and truck have separate MPG values from AEO table
+      - Car/truck split within LDV uses AEO regional sales shares
+      # TODO: verify car/truck split varies by region vs. fixed
 
     Args:
         vmt_by_fuel: Dict mapping fuel type -> VMT for this year.
         year: Target year for MPG lookups.
-        aeo_mpg: AEO MPG DataFrame (with vehicle_class column).
-        car_fraction: Car sales share for this region/year (from AEO LDV sales).
-        truck_fraction: Truck sales share for this region/year (from AEO LDV sales).
+        aeo_mpg: AEO MPG DataFrame.
+        aeo_ldv_sales: Optional AEO LDV sales shares DataFrame.
         aeo_freight: Optional AEO freight efficiency DataFrame.
 
     Returns:
@@ -189,54 +186,45 @@ def calculate_fuel_consumption(
     """
     yr_col = f"y{year}"
 
-    def _get_mpg(vehicle_type: str, vehicle_class: str = "car") -> float:
-        """Look up MPG by vehicle type and class (car or truck).
-
-        Uses the vehicle_class column in aeo_mpg to disambiguate duplicate
-        vehicle type names (e.g., 'Gasoline ICE Vehicles' for both car and truck).
-        """
-        if "vehicle_class" in aeo_mpg.columns:
-            row = aeo_mpg[
-                (aeo_mpg["vehicle_type"] == vehicle_type) &
-                (aeo_mpg["vehicle_class"] == vehicle_class)
-            ]
-        else:
-            row = aeo_mpg[aeo_mpg["vehicle_type"] == vehicle_type]
+    def _get_mpg(vehicle_type: str) -> float:
+        row = aeo_mpg[aeo_mpg["vehicle_type"] == vehicle_type]
         if row.empty:
-            raise ValueError(f"MPG not found for '{vehicle_type}' class='{vehicle_class}'")
+            raise ValueError(f"MPG not found for '{vehicle_type}'")
         val = row[yr_col].iloc[0]
         if val is None or (isinstance(val, float) and np.isnan(val)):
             return np.inf
         return float(val)
 
     def _get_freight_eff(category: str) -> float:
-        """Look up freight efficiency by category.
-
-        Uses the LAST match in the freight efficiency table, which corresponds
-        to the "Average Fuel Efficiencies by Fuel Type" section (AEO R155-R160).
-        Earlier rows contain weight-class-specific values (Light Medium, Medium,
-        Heavy) which are not used in the Transport tab formulas.
-        """
         if aeo_freight is None:
             return np.inf
         row = aeo_freight[aeo_freight["category"] == category]
         if row.empty:
             return np.inf
-        # Use last match = average across weight classes (AEO R155-R160)
-        val = row[yr_col].iloc[-1]
+        val = row[yr_col].iloc[0]
         if val is None or val == 0 or (isinstance(val, float) and np.isnan(val)):
             return np.inf
         return float(val)
 
+    # AEO LDV sales shares (car vs truck fraction within LDV)
+    # Source: AEO tab R103-R104 (South Atlantic region)
+    # TODO: verify these should vary by region
+    car_fraction = 0.42  # approximate from AEO R103
+    truck_fraction = 0.58  # approximate from AEO R104
+
     # ---- Gasoline consumption (gallons) ----
     # Car gasoline: Transport R20 = VMT_gas * LDV * car_frac / car_mpg
-    # AEO!E9 = car gasoline MPG
-    car_gas_mpg = _get_mpg("Gasoline ICE Vehicles", "car")
+    car_gas_mpg = _get_mpg("Gasoline ICE Vehicles")
     car_gas = vmt_by_fuel.get("conventional_gasoline", 0) * LDV_SHARE * car_fraction / car_gas_mpg
 
     # Truck gasoline: Transport R26 = VMT_gas * LDV * truck_frac / truck_mpg
-    # AEO!E24 = truck gasoline MPG (different from car MPG!)
-    truck_gas_mpg = _get_mpg("Gasoline ICE Vehicles", "truck")
+    truck_gas_mpg = _get_mpg("Gasoline ICE Vehicles")  # R24 in AEO
+    # Actually AEO R24 is light truck gasoline MPG
+    try:
+        truck_gas_mpg = _get_mpg("Gasoline ICE Vehicles")  # Uses same row for trucks in some versions
+    except ValueError:
+        pass
+
     truck_gas = vmt_by_fuel.get("conventional_gasoline", 0) * LDV_SHARE * truck_fraction / truck_gas_mpg
 
     # Freight gasoline: Transport R33 = VMT_gas * HDV / freight_gas_mpg
@@ -246,10 +234,8 @@ def calculate_fuel_consumption(
     total_gasoline = car_gas + truck_gas + freight_gas
 
     # ---- Diesel consumption (gallons) ----
-    # Diesel only has truck (R27) and freight (R34), no car diesel row in Excel
-    # Transport R27 (truck TDI): VMT_diesel * LDV * truck_frac / diesel_mpg
-    # Note: Excel R27 = E46*$F53/AEO!E25 — no car_frac, uses full LDV share
-    truck_diesel_mpg = _get_mpg("TDI Diesel ICE", "truck")
+    # Transport R27 (truck TDI): VMT_diesel * LDV / diesel_mpg
+    truck_diesel_mpg = _get_mpg("TDI Diesel ICE")
     truck_diesel = vmt_by_fuel.get("tdi_diesel", 0) * LDV_SHARE / truck_diesel_mpg
 
     # Transport R34 (freight TDI): VMT_diesel * HDV / freight_diesel_mpg
@@ -259,15 +245,12 @@ def calculate_fuel_consumption(
     total_diesel = truck_diesel + freight_diesel
 
     # ---- Ethanol consumption (gallons) ----
-    # Car flex: Transport R21 = VMT_flex * LDV * car_frac / car_flex_mpg
-    # NOTE: Excel R21 formula references E46 (diesel VMT) instead of E47 (flex VMT).
-    # This appears to be a formula copy error in the Excel. Python uses the correct
-    # flex-fuel VMT for this calculation. This causes a small divergence from Excel.
-    car_flex_mpg = _get_mpg("Ethanol-Flex Fuel ICE", "car")
-    car_ethanol = vmt_by_fuel.get("flex_fuel", 0) * LDV_SHARE * car_fraction / car_flex_mpg
+    # Car flex: Transport R21 = VMT_flex * LDV * car_frac / flex_mpg
+    flex_mpg = _get_mpg("Ethanol-Flex Fuel ICE")
+    car_ethanol = vmt_by_fuel.get("flex_fuel", 0) * LDV_SHARE * car_fraction / flex_mpg
 
-    # Truck flex: Transport R28 = VMT_flex * LDV * truck_frac / truck_flex_mpg
-    truck_flex_mpg = _get_mpg("Ethanol-Flex Fuel ICE", "truck")
+    # Truck flex: Transport R28
+    truck_flex_mpg = _get_mpg("Ethanol-Flex Fuel ICE")  # AEO R27
     truck_ethanol = vmt_by_fuel.get("flex_fuel", 0) * LDV_SHARE * truck_fraction / truck_flex_mpg
 
     # Freight flex: Transport R35
@@ -277,54 +260,38 @@ def calculate_fuel_consumption(
     total_ethanol = car_ethanol + truck_ethanol + freight_ethanol
 
     # ---- Electricity consumption (MWh) ----
-    # Car EV: Transport R22 = VMT_ev * LDV * car_frac / car_ev_mpge * kWh_per_gal / 1000
-    car_ev_mpge = _get_mpg("Average EV", "car")
+    # Car EV: Transport R22 = VMT_ev * LDV * car_frac / avg_ev_mpge * kWh_per_gal / 1000
+    avg_ev_mpge = _get_mpg("Average EV")
     car_ev_mwh = (vmt_by_fuel.get("electric", 0) * LDV_SHARE * car_fraction
-                  / car_ev_mpge * KWH_PER_GALLON_GASOLINE / 1000)
+                  / avg_ev_mpge * KWH_PER_GALLON_GASOLINE / 1000)
 
-    # Truck EV: Transport R29 = VMT_ev * LDV * truck_frac / truck_ev_mpge * kWh_per_gal / 1000
-    truck_ev_mpge = _get_mpg("Average EV", "truck")
+    # Truck EV: Transport R29
     truck_ev_mwh = (vmt_by_fuel.get("electric", 0) * LDV_SHARE * truck_fraction
-                    / truck_ev_mpge * KWH_PER_GALLON_GASOLINE / 1000)
+                    / avg_ev_mpge * KWH_PER_GALLON_GASOLINE / 1000)
 
     # Freight EV: Transport R36
     freight_ev_mpge = _get_freight_eff("Electric")
     freight_ev_mwh = (vmt_by_fuel.get("electric", 0) * HDV_SHARE
                       / freight_ev_mpge * KWH_PER_GALLON_GASOLINE / 1000)
 
-    # Plugin hybrid
-    # Car PHEV: Transport R23 = VMT_phev * LDV * car_frac / car_phev_mpg
-    car_phev_mpg = _get_mpg("Average Plug In Hybrid", "car")
-    car_phev = vmt_by_fuel.get("plugin_hybrid", 0) * LDV_SHARE * car_fraction / car_phev_mpg
-
-    # Truck PHEV: Transport R30 = VMT_phev * LDV * truck_frac / truck_phev_mpg
-    truck_phev_mpg = _get_mpg("Average Plug In Hybrid", "truck")
-    truck_phev = vmt_by_fuel.get("plugin_hybrid", 0) * LDV_SHARE * truck_fraction / truck_phev_mpg
-
+    # Plugin hybrid (gasoline equivalent consumed)
+    avg_phev_mpg = _get_mpg("Average Plug In Hybrid")
+    car_phev = vmt_by_fuel.get("plugin_hybrid", 0) * LDV_SHARE * car_fraction / avg_phev_mpg
+    truck_phev = vmt_by_fuel.get("plugin_hybrid", 0) * LDV_SHARE * truck_fraction / avg_phev_mpg
     # Freight plugin diesel hybrid
     freight_phev_mpg = _get_freight_eff("Plug-in Diesel Hybrid")
     freight_phev = vmt_by_fuel.get("plugin_hybrid", 0) * HDV_SHARE / freight_phev_mpg
 
     # Electric hybrid (gasoline equivalent)
-    # Car hybrid: Transport R24 = VMT_hybrid * LDV * car_frac / car_hybrid_mpg
-    car_ehybrid_mpg = _get_mpg("Electric-Gasoline Hybrid", "car")
-    car_ehybrid = vmt_by_fuel.get("electric_hybrid", 0) * LDV_SHARE * car_fraction / car_ehybrid_mpg
-
-    # Truck hybrid: Transport R31 = VMT_hybrid * LDV * truck_frac / truck_hybrid_mpg
-    truck_ehybrid_mpg = _get_mpg("Electric-Gasoline Hybrid", "truck")
-    truck_ehybrid = vmt_by_fuel.get("electric_hybrid", 0) * LDV_SHARE * truck_fraction / truck_ehybrid_mpg
-
+    ehybrid_mpg = _get_mpg("Electric-Gasoline Hybrid")
+    car_ehybrid = vmt_by_fuel.get("electric_hybrid", 0) * LDV_SHARE * car_fraction / ehybrid_mpg
+    truck_ehybrid = vmt_by_fuel.get("electric_hybrid", 0) * LDV_SHARE * truck_fraction / ehybrid_mpg
     freight_ehybrid_mpg = _get_freight_eff("Electric Hybrid")
     freight_ehybrid = vmt_by_fuel.get("electric_hybrid", 0) * HDV_SHARE / freight_ehybrid_mpg
 
-    # Allocation per Excel R13-R14:
-    # Gasoline (R13) = car_gas + car_phev + car_hybrid + truck_gas + truck_phev
-    #                 + truck_hybrid + freight_gas + freight_hybrid
-    # Diesel (R14) = truck_diesel + freight_diesel + freight_phev
-    # Note: freight_ehybrid goes to gasoline (R13 includes R38), NOT diesel
-    # Note: freight_phev goes to diesel (R14 includes R37)
-    total_gasoline += car_phev + truck_phev + car_ehybrid + truck_ehybrid + freight_ehybrid
-    total_diesel += freight_phev
+    # Add hybrid/PHEV gasoline consumption to total gasoline
+    total_gasoline += car_phev + truck_phev + car_ehybrid + truck_ehybrid
+    total_diesel += freight_phev + freight_ehybrid
 
     total_electricity_mwh = car_ev_mwh + truck_ev_mwh + freight_ev_mwh
 

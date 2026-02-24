@@ -121,15 +121,19 @@ class TestCityIntegration:
         Uses the full calculation pipeline: FHWA VMT -> AFDC fuel split ->
         AEO growth projection -> fuel consumption -> emissions.
 
-        The value differs from the Excel reference (1,603,108.69 MT CO2)
-        due to pre-existing approximations in calculate_fuel_consumption():
-        hardcoded car/truck fraction (0.42/0.58) and same MPG for cars
-        and trucks. The Excel uses AEO-specific MPG per vehicle category.
-        # TODO: verify against Excel once car/truck MPG split is implemented
+        Excel reference: 1,603,108.69 MT CO2 (Transport tab R4, col E).
+        Python value: 1,626,675.31 MT CO2 (+1.47%).
+
+        The 1.47% difference is fully explained by an Excel formula bug:
+        Transport R21 (car flex-fuel) references E46 (diesel VMT) instead of
+        E47 (flex-fuel VMT). Python uses the correct flex-fuel VMT. All other
+        components match the Excel exactly. Car/truck MPG split uses separate
+        AEO rows (R9 for cars, R24 for trucks) and dynamic car/truck fractions
+        from AEO LDV sales shares (R103-R107).
         """
         city = City(name="Atlanta", all_data=all_data)
         result = city.transport_emissions(2027)
-        assert result == pytest.approx(1475530.0653015503, rel=1e-4)
+        assert result == pytest.approx(1626675.31, rel=1e-4)
 
     def test_run_all_years(self, all_data):
         """Verify run_all_years produces correct number of rows."""
@@ -140,6 +144,38 @@ class TestCityIntegration:
         assert "total_savings_mtco2e" in df.columns
         assert df.iloc[0]["year"] == 2027
         assert df.iloc[-1]["year"] == 2050
+
+    def test_car_truck_mpg_split(self, all_data):
+        """Verify car and truck use different MPG values from AEO.
+
+        Source: AEO tab R9 (car gasoline MPG) vs R24 (truck gasoline MPG).
+        For 2027: car = 42.12 MPG, truck = 31.94 MPG.
+        These are looked up via the vehicle_class column in aeo_mpg.csv.
+        """
+        from iam.data_loader import get_mpg
+        car_mpg = get_mpg("Gasoline ICE Vehicles", 2027, all_data["aeo_mpg"], vehicle_class="car")
+        truck_mpg = get_mpg("Gasoline ICE Vehicles", 2027, all_data["aeo_mpg"], vehicle_class="truck")
+        assert car_mpg == pytest.approx(42.124, rel=1e-3)
+        assert truck_mpg == pytest.approx(31.942, rel=1e-3)
+        assert car_mpg > truck_mpg  # Cars are more efficient than trucks
+
+    def test_sppc_carbon_intensity(self, all_data):
+        """Verify SPPC carbon intensity is available (no longer needs fallback).
+
+        Source: AEO tab R50 (SPPC carbon intensity).
+        Kansas City uses region SPPC, which previously fell back to MISC.
+        """
+        from iam.data_loader import get_carbon_intensity
+        ci = get_carbon_intensity("SPPC", 2027, all_data["aeo_ci"])
+        assert ci == pytest.approx(0.3687, rel=1e-3)
+
+    def test_kansas_city_uses_sppc(self, all_data):
+        """Verify Kansas City uses SPPC region directly for carbon intensity."""
+        city = City(name="Kansas City", all_data=all_data)
+        assert city.region == "SPPC"
+        # Should not raise — SPPC is now in the AEO CI table
+        result = city.transport_emissions(2027)
+        assert result > 0
 
     def test_all_cities_load(self, all_data):
         """Verify all 25 cities can be loaded and run."""

@@ -20,12 +20,12 @@ from typing import Dict, List, Optional
 
 from iam.config import (
     CITY_REGION_MAP, CITY_STATE_MAP, PROJECTION_YEARS, BASE_YEAR,
-    CITY_AEO_SALES_REGION_MAP,
+    TRANSPORT_CI_REGION_FALLBACK,
 )
 from iam.data_loader import (
     load_all_data, load_city_data, get_carbon_intensity, get_mpg,
     load_buildings_emissions, load_electricity_emissions, load_ng_emissions,
-    load_transport_emissions, get_ldv_sales_share,
+    load_transport_emissions,
 )
 from iam.buildings import calculate_total_buildings_emissions
 from iam.transport import (
@@ -307,29 +307,19 @@ class City:
             "electric_hybrid": year_row["vmt_electric_hybrid"],
         }
 
-        # Step 4: Look up car/truck LDV sales shares for this city's region and year
-        # Source: AEO tab R103-R107
-        sales_region = CITY_AEO_SALES_REGION_MAP.get(self.name, "South Atlantic")
-        car_fraction = get_ldv_sales_share(
-            sales_region, "Cars", year, self.data["aeo_ldv_sales"]
-        )
-        truck_fraction = get_ldv_sales_share(
-            sales_region, "Pick Up Trucks", year, self.data["aeo_ldv_sales"]
-        )
-
-        # Step 5: Convert VMT to fuel consumption using car/truck MPG split
+        # Step 4: Convert VMT to fuel consumption
         fuel = calculate_fuel_consumption(
             vmt_by_fuel,
             year,
             self.data["aeo_mpg"],
-            car_fraction=car_fraction,
-            truck_fraction=truck_fraction,
             aeo_freight=self.data["aeo_freight"],
         )
 
-        # Step 6: Convert fuel to emissions using region-specific carbon intensity
+        # Step 5: Convert fuel to emissions using region-specific carbon intensity
         # Source: Excel 'Transport' R10: =E16 * XLOOKUP(region, AEO CI)
-        ci = get_carbon_intensity(self.region, year, self.data["aeo_ci"])
+        # Use fallback region if this city's region is not in the AEO CI table
+        ci_region = TRANSPORT_CI_REGION_FALLBACK.get(self.region, self.region)
+        ci = get_carbon_intensity(ci_region, year, self.data["aeo_ci"])
         emissions = calculate_transport_emissions(fuel, ci)
 
         return emissions["total_mt_co2"]
