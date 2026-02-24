@@ -1,12 +1,12 @@
-# IAM-py
+# baseline-builder-py
 
 Python/conda refactor of an Excel-based Integrated Assessment Model (IAM) that calculates GHG emissions savings for 25 US cities across projection years 2027-2050. Covers two sectors: **Buildings** (residential and commercial) and **Transportation**.
 
 ## Setup
 
 ```bash
-conda create -n IAM-py python=3.11
-conda activate IAM-py
+conda create -n baseline-builder-py python=3.11
+conda activate baseline-builder-py
 pip install -r requirements.txt
 ```
 
@@ -106,7 +106,7 @@ The v2/v3 tabs include:
 ## Testing
 
 ```bash
-# Run all 14 tests
+# Run all 21 tests
 pytest tests/test_findings.py -v
 ```
 
@@ -116,6 +116,7 @@ Tests cover:
 - Transport emissions (Atlanta 2027, car/truck MPG split validation)
 - SPPC carbon intensity (Kansas City uses SPPC directly, no fallback)
 - All 25 cities load and run successfully
+- v1/v2 transport version tests (reference values, hardcoded fractions, SPPC fallback, cross-version deltas)
 
 ## Documentation
 
@@ -198,7 +199,7 @@ Select **GitHub.com**, **HTTPS**, and follow the browser-based login flow.
 ### 4. Create the repository and push
 
 ```bash
-gh repo create IAM-py --private --source=. --push
+gh repo create baseline-builder-py --private --source=. --push
 ```
 
 This creates a private repo on GitHub, sets it as the remote, and pushes the current branch.
@@ -212,7 +213,7 @@ git push
 ## Project Structure
 
 ```
-IAM-py/
+baseline-builder-py/
 ├── iam/                       # Main Python package
 │   ├── config.py              # Constants, city mappings, growth rates
 │   ├── data_loader.py         # CSV loading and lookups
@@ -231,7 +232,7 @@ IAM-py/
 │   ├── build_transport_tab.py # Generate single Excel tab
 │   └── build_transport_tabs.py # Generate v2 + v3 Excel tabs
 ├── tests/
-│   └── test_findings.py       # 14 tests
+│   └── test_findings.py       # 21 tests
 ├── data/                      # Input data (CSVs extracted from Excel)
 ├── docs/                      # Documentation
 ├── outputs/                   # Generated CSV/Excel outputs

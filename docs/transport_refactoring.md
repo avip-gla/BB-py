@@ -17,7 +17,7 @@
 
 ## 1. Executive Summary
 
-IAM-py is a Python-based Integrated Assessment Model that calculates greenhouse gas (GHG) emissions savings for 25 US cities across projection years 2027 through 2050. The model covers two sectors: **Buildings** (residential and commercial) and **Transportation**. It was refactored from an Excel-based model into a Python/conda application to improve transparency, reproducibility, and city-level accuracy.
+baseline-builder-py is a Python-based Integrated Assessment Model that calculates greenhouse gas (GHG) emissions savings for 25 US cities across projection years 2027 through 2050. The model covers two sectors: **Buildings** (residential and commercial) and **Transportation**. It was refactored from an Excel-based model into a Python/conda application to improve transparency, reproducibility, and city-level accuracy.
 
 The transportation module underwent two major refactoring phases:
 
@@ -124,6 +124,26 @@ The v2 refactor replaced the single-city approach with a fully city-specific dat
 2. **State-specific AFDC fuel shares.** Vehicle registration data from the Alternative Fuels Data Center is now looked up by each city's state, reflecting differences in vehicle fleet composition (e.g., higher EV shares in California vs. lower shares in Texas).
 
 3. **Region-specific carbon intensity.** Each city is mapped to one of 12 AEO electricity market regions, so electricity emissions reflect the actual grid mix. Cities served by cleaner grids (e.g., Pacific Northwest hydro) produce lower electricity-related transport emissions than those on coal-heavy grids.
+
+### What Replaced What: Excel Cell-Level Mapping
+
+The v2 refactor replaced five specific hardcoded values from the Excel Transport tab with city-specific lookups:
+
+| Excel Cell | v1 (All Cities = Atlanta) | v2 (Per City) | Data Source |
+|---|---|---|---|
+| R42 (City) | "Atlanta" hardcoded | Each of 25 cities | `config.CITY_REGION_MAP` keys |
+| R43 (Region) | "SRSE" | Per-city AEO region | `config.CITY_REGION_MAP[city]` |
+| R44 (Total VMT) | 5,598,764,246 (Atlanta) | FHWA lookup per city | `fhwa_vmt.csv` |
+| R45-R50 (VMT by fuel) | R44 x Georgia AFDC shares | R44 x city's state AFDC shares | `afdc_vehicle_shares.csv` |
+| R10 (Electricity CI) | XLOOKUP("SRSE", AEO CI) | XLOOKUP(city_region, AEO CI) | `aeo_carbon_intensity.csv` |
+
+These replacements are driven by three new mapping tables and three new CSV data files, none of which existed in v1:
+
+1. **FHWA VMT (R44)** -- City-level total VMT ranges from approximately 0.8 billion (smaller cities like Lansing) to over 10 billion (larger metros like Philadelphia). In v1, all 25 cities used Atlanta's 5.6 billion VMT. The new `fhwa_vmt.csv` and `CITY_STATE_MAP` enable per-city lookups.
+
+2. **AFDC Fuel Shares (R45-R50)** -- State-level vehicle fleet composition varies significantly. For example, California (Oakland) has much higher EV registration shares than Georgia (Atlanta) or Mississippi (Jackson). The new `afdc_vehicle_shares.csv` and `CITY_STATE_MAP` enable per-state lookups.
+
+3. **Carbon Intensity (R10)** -- Regional grid cleanliness varies by AEO electricity market region. The Pacific Northwest (hydro-heavy) has much lower carbon intensity than the Southeast (coal/gas-heavy). The new `aeo_carbon_intensity.csv` (with all 12 regions) and `CITY_REGION_MAP` enable per-region lookups.
 
 ### Items Still Approximated in v2
 
@@ -333,7 +353,7 @@ This has been verified by manually substituting the Excel's incorrect VMT refere
 
 ### Full City Coverage
 
-All 25 cities run successfully through both the v2 and v3 pipelines. The automated test suite includes 14 tests, all of which pass. Cities span diverse geographies, vehicle fleets, and electricity grid regions, confirming that the city-specific data pipeline handles the full range of input variations.
+All 25 cities run successfully through both the v2 and v3 pipelines. The automated test suite includes 21 tests, all of which pass. Cities span diverse geographies, vehicle fleets, and electricity grid regions, confirming that the city-specific data pipeline handles the full range of input variations.
 
 ---
 

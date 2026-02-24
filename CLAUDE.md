@@ -1,8 +1,8 @@
-# CLAUDE.md — IAM-py Project Guide
+# CLAUDE.md — baseline-builder-py Project Guide
 
 ## Project Overview
 
-**IAM-py** is a Python/conda refactor of an Excel-based Integrated Assessment Model (IAM) that calculates **GHG emissions savings** in US cities across future years. Emissions reductions come from two sectors:
+**baseline-builder-py** is a Python/conda refactor of an Excel-based Integrated Assessment Model (IAM) that calculates **GHG emissions savings** in US cities across future years. Emissions reductions come from two sectors:
 - **Buildings** (Residential & Commercial)
 - **Transportation**
 
@@ -12,12 +12,12 @@ The model uses city-level and fixed national data, drawing from energy data sour
 
 ## Conda Environment
 
-- **Environment name:** `IAM-py`
+- **Environment name:** `baseline-builder-py`
 - **Python version:** 3.11 (recommended for scientific stack compatibility)
 - **Create with:**
   ```bash
-  conda create -n IAM-py python=3.11
-  conda activate IAM-py
+  conda create -n baseline-builder-py python=3.11
+  conda activate baseline-builder-py
   pip install -r requirements.txt
   ```
 
@@ -37,7 +37,7 @@ pytest
 ## Project Structure
 
 ```
-IAM-py/
+baseline-builder-py/
 ├── CLAUDE.md                  # This file (dev guide for Claude Code)
 ├── README.md                  # User-facing usage guide
 ├── environment.yml            # Conda environment spec
@@ -86,7 +86,7 @@ IAM-py/
 │   ├── build_transport_tab.py # Generate "Transport (City-Specific)" Excel tab
 │   └── build_transport_tabs.py # Generate v2 and v3 Excel tabs
 ├── tests/
-│   └── test_findings.py       # 14 tests: emission factors, buildings, transport
+│   └── test_findings.py       # 21 tests: emission factors, buildings, transport, v1/v2 versions
 └── IAM_model.xlsx             # Excel workbook with generated tabs
 ```
 
@@ -270,12 +270,13 @@ python scripts/build_transport_tab.py
 pytest tests/test_findings.py -v
 ```
 
-14 tests covering:
+21 tests covering:
 - Emission factor constants (NG, MWh/MMBtu conversions)
 - Buildings emissions (electricity, NG) for specific cities/years
 - Transport emissions (Atlanta 2027, car/truck MPG split validation)
 - SPPC carbon intensity (direct lookup, no fallback)
 - All 25 cities load successfully
+- v1/v2 transport version validation (reference values, hardcoded fractions, SPPC fallback, cross-version deltas)
 
 ---
 

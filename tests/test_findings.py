@@ -184,3 +184,118 @@ class TestCityIntegration:
             city = City(name=city_name, all_data=all_data)
             total = city.total_emissions(2027)
             assert total > 0, f"{city_name} has zero total emissions in 2027"
+
+
+class TestTransportVersions:
+    """Test v1 (Excel) and v2 (city-specific, hardcoded fractions) transport emissions.
+
+    v1 = Excel reference city (Atlanta), same value for all 25 cities.
+    v2 = City-specific VMT/fuel/CI, hardcoded 0.42/0.58 car/truck fractions,
+         same MPG for car/truck, SPPC->MISC fallback.
+    v3 = Dynamic car/truck fractions, separate car/truck MPG, SPPC direct (current).
+
+    Computation functions imported from scripts/compare_versions.py.
+    """
+
+    @pytest.fixture(scope="class")
+    def all_data(self):
+        return load_all_data()
+
+    @pytest.fixture(scope="class")
+    def v1_results(self, all_data):
+        from scripts.compare_versions import compute_v1
+        return compute_v1(all_data, [2027])
+
+    @pytest.fixture(scope="class")
+    def v2_results(self, all_data):
+        from scripts.compare_versions import compute_v2
+        return compute_v2(all_data, [2027])
+
+    def test_v1_atlanta_transport_2027(self, v1_results):
+        """v1 (Excel reference city) should return 1,603,108.69 MT CO2 for Atlanta 2027.
+
+        Source: data/inputs/transport_emissions.csv, year=2027.
+        This is the pre-calculated Excel value using Atlanta as reference city.
+        """
+        total = v1_results["Atlanta"][2027]["total_mt_co2"]
+        assert total == pytest.approx(1_603_108.69, rel=1e-4)
+
+    def test_v1_all_cities_same(self, v1_results):
+        """v1 uses the same reference city value for all 25 cities.
+
+        This is the defining characteristic of v1: every city gets the same
+        pre-calculated transport emissions from the Excel model.
+        """
+        from iam.config import CITIES
+        atlanta_total = v1_results["Atlanta"][2027]["total_mt_co2"]
+        for city_name in CITIES:
+            assert v1_results[city_name][2027]["total_mt_co2"] == atlanta_total, (
+                f"{city_name} v1 value differs from Atlanta"
+            )
+
+    def test_v2_atlanta_transport_2027(self, v2_results):
+        """v2 city-specific pipeline for Atlanta 2027 should return ~1,475,530 MT CO2.
+
+        Source: scripts/compare_versions.py output.
+        v2 uses city-specific VMT and fuel splits but hardcoded 0.42/0.58
+        car/truck fractions and same MPG for both.
+        """
+        total = v2_results["Atlanta"][2027]["total_mt_co2"]
+        assert total == pytest.approx(1_475_530.1, rel=1e-3)
+
+    def test_v2_hardcoded_fractions(self, v2_results, all_data):
+        """v2 uses hardcoded 0.42/0.58 car/truck fractions, producing different
+        results than v3 (which uses dynamic AEO LDV sales fractions).
+
+        For Atlanta 2027, v3 = 1,626,675 vs v2 = 1,475,530 (~10% difference).
+        """
+        city = City(name="Atlanta", all_data=all_data)
+        v3_total = city.transport_emissions(2027)
+        v2_total = v2_results["Atlanta"][2027]["total_mt_co2"]
+        # v3 should be ~10% higher than v2 for Atlanta
+        assert v3_total > v2_total
+        pct_diff = (v3_total - v2_total) / v2_total * 100
+        assert pct_diff == pytest.approx(10.2, abs=1.0)
+
+    def test_v2_sppc_fallback(self, v2_results, all_data):
+        """Kansas City (SPPC region) falls back to MISC in v2, but uses SPPC directly in v3.
+
+        This should produce different emissions values between v2 and v3
+        for Kansas City, since SPPC and MISC have different carbon intensities.
+        """
+        city = City(name="Kansas City", all_data=all_data)
+        v3_total = city.transport_emissions(2027)
+        v2_total = v2_results["Kansas City"][2027]["total_mt_co2"]
+        # v2 uses MISC CI, v3 uses SPPC CI — values should differ
+        assert v2_total != pytest.approx(v3_total, rel=1e-6)
+        # v2 Kansas City = ~1,437,863, v3 = ~1,567,596
+        assert v2_total == pytest.approx(1_437_863, rel=1e-3)
+        assert v3_total == pytest.approx(1_567_596, rel=1e-3)
+
+    def test_v2_vs_v3_atlanta_difference(self, v1_results, v2_results, all_data):
+        """v2 and v3 produce different values for Atlanta 2027 due to MPG split
+        and fraction changes.
+
+        v1 (Excel): 1,603,109 MT CO2
+        v2 (City):  1,475,530 MT CO2 (-8.0% vs v1)
+        v3 (MPG):   1,626,675 MT CO2 (+1.5% vs v1)
+        """
+        v1_total = v1_results["Atlanta"][2027]["total_mt_co2"]
+        v2_total = v2_results["Atlanta"][2027]["total_mt_co2"]
+        city = City(name="Atlanta", all_data=all_data)
+        v3_total = city.transport_emissions(2027)
+
+        # v2 is ~8% below v1
+        v2_v1_pct = (v2_total - v1_total) / v1_total * 100
+        assert v2_v1_pct == pytest.approx(-8.0, abs=1.0)
+
+        # v3 is ~1.5% above v1
+        v3_v1_pct = (v3_total - v1_total) / v1_total * 100
+        assert v3_v1_pct == pytest.approx(1.5, abs=1.0)
+
+    def test_v2_all_cities_run(self, v2_results):
+        """All 25 cities produce non-zero v2 transport emissions (smoke test)."""
+        from iam.config import CITIES
+        for city_name in CITIES:
+            total = v2_results[city_name][2027]["total_mt_co2"]
+            assert total > 0, f"{city_name} has zero v2 transport emissions"
