@@ -75,11 +75,20 @@ EMISSION_FACTORS_KG_CO2: dict = {
 }
 
 # ============================================================
-# VMT annual growth rates by technology type
+# National VMT growth rate (flat annual rate)
+# Source: FHWA national VMT trend, Baseline Module Documentation
+# Used to project total VMT forward from the base year.
+# ============================================================
+NATIONAL_VMT_GROWTH_RATE: float = 0.006  # 0.6% per year
+
+# ============================================================
+# VMT annual growth rates by technology type (DEPRECATED)
 # Source: Excel 'Transport' tab R70-R86 (AEO 2025 Table 41)
 # Average annual change 2024-2050
+# Retained for backward compatibility with versioned modules.
+# Current transport module uses flat NATIONAL_VMT_GROWTH_RATE + AFDC shares.
 # ============================================================
-VMT_GROWTH_RATES: dict = {
+VMT_GROWTH_RATES_AEO_TABLE41: dict = {
     "conventional_gasoline": -0.0326834237020539,
     "tdi_diesel": -0.01919978730308591,
     "ethanol_flex_fuel": -0.07232033885114875,
@@ -96,10 +105,16 @@ VMT_GROWTH_RATES: dict = {
     "fuel_cell_hydrogen": -0.05573080622906224,
 }
 
+# Backward compatibility alias for versioned modules
+VMT_GROWTH_RATES: dict = VMT_GROWTH_RATES_AEO_TABLE41
+
 # ============================================================
 # City-to-region mapping
 # Source: Excel 'Buildings' tab R33-R57, 'Electricity' tab R32-R56
 # Regions correspond to AEO electricity market modules
+# Maps each city to its AEO electricity market region. Drives per-city carbon
+# intensity lookups in Transport R10 and Electricity emissions.
+# The Excel model does this via Findings!B5 -> Transport B43.
 # ============================================================
 CITY_REGION_MAP: dict = {
     "Akron": "PJMW",
@@ -131,6 +146,8 @@ CITY_REGION_MAP: dict = {
 
 # City-to-state mapping (for AFDC vehicle share lookups)
 # Source: Excel 'Findings' tab R4 (State), 'Transport' tab R42
+# Maps each city to its state for AFDC vehicle share lookups in Transport R45-R50.
+# The Excel model does this via Findings!B4 -> Transport B42.
 CITY_STATE_MAP: dict = {
     "Akron": "Ohio",
     "Atlanta": "Georgia",
@@ -165,6 +182,13 @@ CITY_STATE_MAP: dict = {
 # Cities are mapped to either "South Atlantic" or "Middle Atlantic" based on
 # their geographic location. Used in transport fuel consumption to determine
 # the car vs. truck fraction within LDV VMT.
+# NOTE: Excel Transport tab hardcodes AEO R103/R104 (South Atlantic) for car/truck
+# LDV sales fractions for ALL cities. The formula references are:
+#   R20: =E48*$F57*AEO!E103/AEO!E9   (Cars, South Atlantic)
+#   R27: =E48*$F57*AEO!E104/AEO!E24   (Trucks, South Atlantic)
+# Python intentionally uses region-appropriate AEO sales data instead.
+# This produces ~0.1-0.15% differences vs Excel for non-South-Atlantic cities.
+# TODO: Revisit — may switch to match Excel hardcoding if needed.
 CITY_AEO_SALES_REGION_MAP: dict = {
     "Akron": "Middle Atlantic",
     "Atlanta": "South Atlantic",

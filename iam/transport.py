@@ -3,16 +3,26 @@
 Translates the Excel 'Transport' tab into Python.
 
 The transport model works as follows:
-1. Start with total VMT for the reference city (from FHWA data, 2024)
+1. Start with total VMT for each city (from FHWA data, 2024)
 2. Allocate VMT by fuel type using AFDC state vehicle registration shares
-3. Project VMT forward using AEO annual growth rates per fuel type
-4. Convert VMT to fuel consumption using AEO MPG by vehicle type
-5. Convert fuel consumption to emissions using EPA emission factors
+3. Project total VMT forward using flat 0.6%/year national growth rate (FHWA)
+4. Evolve fuel shares using AFDC growth deltas (2024-2023 change, applied once)
+5. Convert VMT to fuel consumption using AEO MPG by vehicle type
+6. Convert fuel consumption to emissions using EPA emission factors
+
+VMT projection methodology (Baseline Module Documentation):
+- Total VMT grows at flat 0.6%/year: total_vmt(Y) = total_vmt(2024) * (1.006)^(Y-2024)
+- Year 1 (2024) fuel shares = AFDC 2024 registration shares
+- Year 2+ fuel shares = 2024_share + growth_delta (FIXED, not cumulative)
+- Shares clamped >= 0 and re-normalized to sum to 1.0
+- fuel_vmt(Y) = total_vmt(Y) * fuel_share(Y)
+
+Seven fuel types: gasoline, diesel, ethanol, electric, plugin_hybrid,
+electric_hybrid, biodiesel. Biodiesel gallons use the diesel emission factor.
 
 Key Excel formulas and their locations:
 - Total VMT (R44): =XLOOKUP(city, FHWA!A9:A33, FHWA!AB9:AB33) * 1000
-- VMT allocation (R45): =$B$44 * XLOOKUP($B$42, B$90:AZ$90, B91:AZ91)
-- VMT growth (R45 col E+): =D45 + (D45 * $B70)
+- VMT allocation (R45): =$B$44 * XLOOKUP($B$42, B$67:AZ$67, B68:AZ68)
 - Fuel consumption: VMT * vehicle_share / MPG
   - Car gasoline (R20): =E45 * $F53 * AEO!E103 / AEO!E9
   - Truck gasoline (R26): =E45 * $F53 * AEO!E104 / AEO!E24
@@ -29,7 +39,7 @@ from typing import Dict, Optional
 
 from iam.config import (
     LDV_SHARE, HDV_SHARE, KWH_PER_GALLON_GASOLINE,
-    EMISSION_FACTORS_KG_CO2, VMT_GROWTH_RATES,
+    EMISSION_FACTORS_KG_CO2, NATIONAL_VMT_GROWTH_RATE,
     PROJECTION_YEARS, BASE_YEAR,
 )
 
@@ -41,11 +51,13 @@ def calculate_initial_vmt_by_fuel(
 ) -> dict:
     """Allocate total VMT across fuel types using AFDC vehicle registration shares.
 
-    Logic source: Excel 'Transport' tab R45-R50 (2024 column).
-    Excel formula: =$B$44 * XLOOKUP($B$42, B$90:AZ$90, B91:AZ91)
+    Logic source: Excel 'Transport' tab R45-R51 (2024 column).
+    Excel formula: =$B$44 * XLOOKUP($B$42, B$67:AZ$67, B68:AZ68)
 
     The AFDC shares represent the fraction of registered vehicles by fuel type
     in the city's state. This is used as a proxy for VMT allocation.
+    Includes 7 fuel types: gasoline, diesel, ethanol, electric, plugin_hybrid,
+    electric_hybrid, and biodiesel.
 
     Args:
         total_vmt: Total annual VMT for the city (from FHWA).
@@ -55,14 +67,21 @@ def calculate_initial_vmt_by_fuel(
     Returns:
         Dict mapping fuel type to allocated VMT.
     """
-    state_row = afdc_shares[afdc_shares["state"] == state]
+    # Filter to 2024 shares if year column present
+    if "year" in afdc_shares.columns:
+        state_row = afdc_shares[
+            (afdc_shares["state"] == state) & (afdc_shares["year"] == 2024)
+        ]
+    else:
+        state_row = afdc_shares[afdc_shares["state"] == state]
+
     if state_row.empty:
         raise ValueError(f"State '{state}' not found in AFDC vehicle shares data")
 
     state_data = state_row.iloc[0]
 
     # Map AFDC share columns to VMT fuel types
-    # Source: Transport tab R91-R96
+    # Source: Transport tab R68-R74
     vmt_by_fuel = {
         "conventional_gasoline": total_vmt * float(state_data.get("gasoline", 0)),
         "tdi_diesel": total_vmt * float(state_data.get("diesel", 0)),
@@ -70,70 +89,72 @@ def calculate_initial_vmt_by_fuel(
         "electric": total_vmt * float(state_data.get("electric_ev", state_data.get("electric", 0))),
         "plugin_hybrid": total_vmt * float(state_data.get("plug-in_hybrid_electric_phev", state_data.get("plug_in_hybrid_electric_phev", 0))),
         "electric_hybrid": total_vmt * float(state_data.get("hybrid_electric_hev", state_data.get("hybrid_electric", 0))),
+        "biodiesel": total_vmt * float(state_data.get("biodiesel", 0)),
     }
 
     return vmt_by_fuel
 
 
 def project_vmt(
-    initial_vmt_by_fuel: dict,
+    total_vmt: float,
+    afdc_shares: dict,
+    afdc_deltas: dict,
     years: list,
 ) -> pd.DataFrame:
-    """Project VMT forward from base year using AEO annual growth rates.
+    """Project VMT forward using flat national growth + AFDC share evolution.
 
-    Logic source: Excel 'Transport' tab R45-R50 (columns C onwards).
-    Excel formula: =D45 + (D45 * $B70)
-    i.e., VMT(year) = VMT(year-1) * (1 + annual_growth_rate)
+    Logic source: Baseline Module Documentation, Excel 'Transport' tab.
 
-    Growth rates from AEO 2025 Table 41 (Transport tab R70-R86):
-    - Conventional Gasoline: -3.27% per year
-    - TDI Diesel: -1.92% per year
-    - Ethanol Flex-Fuel: -7.23% per year
-    - Electric (avg of 100/200/300 mile): +15.1% per year
-    - Plug-in Hybrid (avg of 20/50 mile): +14.5% per year
-    - Electric-Gasoline Hybrid: +5.0% per year
+    Methodology:
+    1. Total VMT grows at flat 0.6%/year (FHWA national trend):
+       total_vmt(Y) = total_vmt(2024) * (1 + 0.006)^(Y - 2024)
+    2. Year 1 (2024) fuel shares = AFDC 2024 registration shares
+    3. Year 2+ fuel shares = 2024_share + growth_delta (FIXED, not cumulative)
+       The delta is the 2024-2023 change, applied as a single step for all
+       years beyond the base year.
+    4. Shares are clamped >= 0 and re-normalized to sum to 1.0
+    5. fuel_vmt(Y) = total_vmt(Y) * fuel_share(Y)
 
     Args:
-        initial_vmt_by_fuel: Dict from calculate_initial_vmt_by_fuel().
+        total_vmt: Total annual VMT for the city in the base year (from FHWA).
+        afdc_shares: Dict mapping fuel type -> 2024 AFDC share (0-1).
+        afdc_deltas: Dict mapping fuel type -> growth delta (2024 - 2023).
         years: List of projection years.
 
     Returns:
         DataFrame with year rows and fuel-type VMT columns.
     """
-    # Map fuel types to growth rates
-    # The Excel uses specific growth rates from AEO Table 41
-    growth_map = {
-        "conventional_gasoline": VMT_GROWTH_RATES["conventional_gasoline"],
-        "tdi_diesel": VMT_GROWTH_RATES["tdi_diesel"],
-        "flex_fuel": VMT_GROWTH_RATES["ethanol_flex_fuel"],
-        # Excel uses 300-mile EV rate for the "Electric" VMT category
-        "electric": VMT_GROWTH_RATES["electric_300mi"],
-        # Excel uses Plug-in 50 rate for the "Plugin Hybrid" category
-        "plugin_hybrid": VMT_GROWTH_RATES["plugin_hybrid_50"],
-        "electric_hybrid": VMT_GROWTH_RATES["electric_gasoline_hybrid"],
-    }
-
+    fuel_types = list(afdc_shares.keys())
     all_years = list(range(BASE_YEAR, max(years) + 1))
     results = []
 
-    current_vmt = dict(initial_vmt_by_fuel)
-
     for yr in all_years:
-        if yr == BASE_YEAR:
-            row = {"year": yr}
-            row.update({f"vmt_{k}": v for k, v in current_vmt.items()})
-            row["vmt_total"] = sum(current_vmt.values())
-            results.append(row)
+        years_from_base = yr - BASE_YEAR
+
+        # Step 1: Total VMT grows at flat rate
+        yr_total_vmt = total_vmt * (1 + NATIONAL_VMT_GROWTH_RATE) ** years_from_base
+
+        # Step 2-3: Fuel shares
+        if years_from_base == 0:
+            # Base year: use 2024 shares directly
+            shares = dict(afdc_shares)
         else:
-            new_vmt = {}
-            for fuel, vmt in current_vmt.items():
-                rate = growth_map.get(fuel, 0)
-                new_vmt[fuel] = vmt * (1 + rate)
-            current_vmt = new_vmt
-            row = {"year": yr}
-            row.update({f"vmt_{k}": v for k, v in current_vmt.items()})
-            row["vmt_total"] = sum(current_vmt.values())
-            results.append(row)
+            # Future years: 2024_share + delta (fixed, not cumulative)
+            shares = {}
+            for fuel in fuel_types:
+                s = afdc_shares.get(fuel, 0) + afdc_deltas.get(fuel, 0)
+                shares[fuel] = max(s, 0)  # Clamp >= 0
+
+        # Step 4: Re-normalize shares to sum to 1.0
+        total_share = sum(shares.values())
+        if total_share > 0:
+            shares = {k: v / total_share for k, v in shares.items()}
+
+        # Step 5: Allocate VMT
+        row = {"year": yr, "vmt_total": yr_total_vmt}
+        for fuel in fuel_types:
+            row[f"vmt_{fuel}"] = yr_total_vmt * shares.get(fuel, 0)
+        results.append(row)
 
     df = pd.DataFrame(results)
     return df[df["year"].isin(years)].reset_index(drop=True)
@@ -216,6 +237,11 @@ def calculate_fuel_consumption(
         to the "Average Fuel Efficiencies by Fuel Type" section (AEO R155-R160).
         Earlier rows contain weight-class-specific values (Light Medium, Medium,
         Heavy) which are not used in the Transport tab formulas.
+
+        For categories that have zero efficiency in early years (Plug-in Diesel
+        Hybrid, Electric Hybrid), falls back to the first non-zero year value.
+        This matches Excel behavior where R39 uses AEO!D159 (2026) for 2024-2025
+        and R40 uses AEO!C160 (2025) for 2024.
         """
         if aeo_freight is None:
             return np.inf
@@ -223,10 +249,17 @@ def calculate_fuel_consumption(
         if row.empty:
             return np.inf
         # Use last match = average across weight classes (AEO R155-R160)
-        val = row[yr_col].iloc[-1]
-        if val is None or val == 0 or (isinstance(val, float) and np.isnan(val)):
-            return np.inf
-        return float(val)
+        last_row = row.iloc[-1]
+        val = last_row[yr_col]
+        if val is not None and val != 0 and not (isinstance(val, float) and np.isnan(val)):
+            return float(val)
+        # Fallback: find first non-zero year value (Excel hardcodes future column refs)
+        year_cols = sorted([c for c in last_row.index if c.startswith("y") and c[1:].isdigit()])
+        for yc in year_cols:
+            v = last_row[yc]
+            if v is not None and v != 0 and not (isinstance(v, float) and np.isnan(v)):
+                return float(v)
+        return np.inf
 
     # ---- Gasoline consumption (gallons) ----
     # Car gasoline: Transport R20 = VMT_gas * LDV * car_frac / car_mpg
@@ -317,14 +350,30 @@ def calculate_fuel_consumption(
     freight_ehybrid_mpg = _get_freight_eff("Electric Hybrid")
     freight_ehybrid = vmt_by_fuel.get("electric_hybrid", 0) * HDV_SHARE / freight_ehybrid_mpg
 
+    # ---- Biodiesel consumption (gallons) ----
+    # Biodiesel is a 7th fuel type using diesel MPG values.
+    # Biodiesel gallons aggregate into the diesel emissions bucket (using diesel EF 10.21).
+    # TODO: Excel R25 uses HDV_SHARE for car biodiesel, not LDV — replicating Excel behavior
+    # Car biodiesel (R25): biodiesel_VMT * HDV_SHARE * car_frac / truck_diesel_MPG
+    car_biodiesel = vmt_by_fuel.get("biodiesel", 0) * HDV_SHARE * car_fraction / truck_diesel_mpg
+
+    # Truck biodiesel (R33): biodiesel_VMT * HDV_SHARE * truck_frac / truck_diesel_MPG
+    truck_biodiesel = vmt_by_fuel.get("biodiesel", 0) * HDV_SHARE * truck_fraction / truck_diesel_mpg
+
+    # Freight biodiesel (R41): biodiesel_VMT * HDV_SHARE / freight_diesel_MPG
+    freight_biodiesel = vmt_by_fuel.get("biodiesel", 0) * HDV_SHARE / freight_diesel_mpg
+
+    total_biodiesel = car_biodiesel + truck_biodiesel + freight_biodiesel
+
     # Allocation per Excel R13-R14:
     # Gasoline (R13) = car_gas + car_phev + car_hybrid + truck_gas + truck_phev
     #                 + truck_hybrid + freight_gas + freight_hybrid
-    # Diesel (R14) = truck_diesel + freight_diesel + freight_phev
+    # Diesel (R14) = truck_diesel + freight_diesel + freight_phev + biodiesel
     # Note: freight_ehybrid goes to gasoline (R13 includes R38), NOT diesel
     # Note: freight_phev goes to diesel (R14 includes R37)
+    # Note: biodiesel gallons use diesel emission factor (10.21 kg CO2/gal)
     total_gasoline += car_phev + truck_phev + car_ehybrid + truck_ehybrid + freight_ehybrid
-    total_diesel += freight_phev
+    total_diesel += freight_phev + total_biodiesel
 
     total_electricity_mwh = car_ev_mwh + truck_ev_mwh + freight_ev_mwh
 
@@ -352,7 +401,10 @@ def calculate_transport_emissions(
 
     Note: Excel formula for electricity is:
       =E16 * XLOOKUP($B43, AEO!$A39:$A50, AEO!E39:E50)
-    This uses the reference city's region for the CI lookup.
+
+    The Excel model correctly uses each city's AEO region via
+    XLOOKUP($B43, AEO!$A39:$A50, ...) where $B43 = Findings!B5.
+    The Python implementation replicates this using CITY_REGION_MAP.
 
     Args:
         fuel_consumption: Dict from calculate_fuel_consumption().

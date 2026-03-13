@@ -1,4 +1,4 @@
-# IAM-py Usage Guide
+# baseline-builder-py Usage Guide
 
 A step-by-step guide for running the IAM (Integrated Assessment Model) to calculate GHG emissions savings across US cities.
 
@@ -14,8 +14,8 @@ A step-by-step guide for running the IAM (Integrated Assessment Model) to calcul
 
 ```bash
 # Create and activate the conda environment
-conda create -n IAM-py python=3.11 -y
-conda activate IAM-py
+conda create -n baseline-builder-py python=3.11 -y
+conda activate baseline-builder-py
 
 # Install dependencies
 pip install -r requirements.txt
@@ -25,7 +25,7 @@ Or use the environment file:
 
 ```bash
 conda env create -f environment.yml
-conda activate IAM-py
+conda activate baseline-builder-py
 ```
 
 ### Verify Installation
@@ -35,13 +35,13 @@ conda activate IAM-py
 pytest tests/ -v
 ```
 
-You should see all 11 tests pass:
+You should see all 17 tests pass:
 
 ```
 tests/test_findings.py::TestEmissionFactors::test_ng_emission_factor PASSED
 tests/test_findings.py::TestEmissionFactors::test_mwh_per_mmbtu PASSED
 ...
-11 passed
+17 passed
 ```
 
 ---
@@ -216,10 +216,12 @@ pytest tests/test_findings.py::TestEmissionFactors -v
 pytest tests/test_findings.py::TestCityIntegration::test_atlanta_buildings_2027 -v
 ```
 
-The test suite validates:
+The test suite (17 tests) validates:
 - Emission factor constants match the Excel model
 - NG and electricity emissions formulas produce correct values
 - City-level integration (Atlanta buildings and transport for 2027 and 2050)
+- VMT projection: flat 0.6% growth rate, AFDC share evolution, biodiesel in diesel bucket
+- SPPC carbon intensity (Kansas City uses SPPC directly)
 - All 25 cities load and produce non-zero emissions
 
 ---
@@ -229,7 +231,7 @@ The test suite validates:
 ### "ModuleNotFoundError: No module named 'iam'"
 Make sure you are running scripts from the project root directory:
 ```bash
-cd /path/to/IAM-py
+cd /path/to/baseline-builder-py
 python scripts/run_model.py --cities atlanta
 ```
 
@@ -254,7 +256,7 @@ The data files may not have been extracted yet. Ensure the `data/` directory con
 ### Conda environment not activated
 If you see import errors for pandas, numpy, etc.:
 ```bash
-conda activate IAM-py
+conda activate baseline-builder-py
 ```
 
 ### Plot not displaying
@@ -339,8 +341,11 @@ Transportation emissions follow a 4-step pipeline: VMT allocation → VMT projec
 
 #### How to Change Transportation Logic
 
-**Change VMT growth rates:**
-Edit `VMT_GROWTH_RATES` in `iam/config.py`. These are annual fractional rates from AEO 2025 Table 41 (e.g., `"conventional_gasoline": -0.0327` means gasoline VMT declines 3.27% per year).
+**Change VMT growth rate:**
+Edit `NATIONAL_VMT_GROWTH_RATE` in `iam/config.py` (currently `0.006`, i.e., 0.6%/year flat national growth from FHWA). Total VMT grows at this flat rate; fuel-type allocation evolves using AFDC share deltas.
+
+**Change AFDC fuel share evolution:**
+Edit `data/inputs/afdc_growth_deltas.csv` to change how fuel shares evolve over time. Each row is a state, each column is a fuel type. The delta is applied as a fixed step for all future years (not cumulative).
 
 **Change EPA emission factors:**
 Edit `EMISSION_FACTORS_KG_CO2` in `iam/config.py`. Current values (kg CO2 per gallon):
@@ -352,7 +357,7 @@ Edit `EMISSION_FACTORS_KG_CO2` in `iam/config.py`. Current values (kg CO2 per ga
 Edit `LDV_SHARE` and `HDV_SHARE` in `iam/config.py` (currently 0.9 / 0.1).
 
 **Change the car/truck fraction within LDV:**
-In `calculate_fuel_consumption()` (`iam/transport.py:212`), the `car_fraction` and `truck_fraction` are hardcoded at 0.42 and 0.58. Change these values or replace them with a lookup from AEO regional sales data.
+The `car_fraction` and `truck_fraction` parameters in `calculate_fuel_consumption()` (`iam/transport.py`) are dynamically sourced from AEO LDV sales shares by region and year. To use different values, modify the lookup in `City.transport_emissions()` (`iam/city.py`) or the data in `data/aeo/aeo_ldv_sales_shares.csv`.
 
 **Add a new fuel type (e.g., hydrogen):**
 1. Add the fuel's VMT growth rate to `VMT_GROWTH_RATES` in `iam/config.py`
@@ -362,10 +367,11 @@ In `calculate_fuel_consumption()` (`iam/transport.py:212`), the `car_fraction` a
 5. Add emissions calculation in `calculate_transport_emissions()` (`iam/transport.py`)
 
 **Change how VMT is projected:**
-Edit `project_vmt()` in `iam/transport.py`. The current formula is compound growth:
+Edit `project_vmt()` in `iam/transport.py`. The current formula is flat growth with AFDC share evolution:
 ```python
-# Current: VMT(year) = VMT(year-1) * (1 + annual_growth_rate)
-new_vmt[fuel] = vmt * (1 + rate)
+# Current: total_vmt(Y) = total_vmt(2024) * (1.006)^(Y - 2024)
+# fuel_share(Y) = clamp(2024_share + growth_delta, min=0), re-normalized to sum to 1.0
+# fuel_vmt(Y) = total_vmt(Y) * fuel_share(Y)
 ```
 
 ### Shared Utilities
@@ -395,9 +401,10 @@ All hardcoded values are centralized here. Key constants you might want to chang
 | `NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU` | 0.05306 | NG emission factor |
 | `MWH_PER_MMBTU` | 0.3 | Electricity unit conversion |
 | `LDV_SHARE` / `HDV_SHARE` | 0.9 / 0.1 | Light-duty vs heavy-duty VMT split |
-| `VMT_GROWTH_RATES` | (see file) | Annual VMT change by fuel type |
+| `NATIONAL_VMT_GROWTH_RATE` | 0.006 | Flat 0.6%/year national VMT growth (FHWA) |
 | `EMISSION_FACTORS_KG_CO2` | (see file) | EPA emission factors by fuel |
 | `CITY_REGION_MAP` | (see file) | Maps each city to its AEO electricity region |
+| `CITY_AEO_SALES_REGION_MAP` | (see file) | Maps each city to its AEO LDV sales region |
 
 ### Aggregation Layer
 
@@ -415,7 +422,7 @@ The architecture is designed so calculation logic can be swapped without touchin
 ```python
 # In iam/city.py — swap this import to change buildings calculation
 from iam.buildings import calculate_total_buildings_emissions  # original
-# from iam.buildings_v2 import calculate_total_buildings_emissions  # your new version
+# from iam.buildings_alt import calculate_total_buildings_emissions  # your new version
 ```
 
 ---
@@ -433,7 +440,8 @@ data/
 ├── inputs/
 │   ├── fixed_data.csv                    # National constants (emission factors, conversions)
 │   ├── fhwa_vmt.csv                      # FHWA Vehicle Miles Traveled by city
-│   ├── afdc_vehicle_shares.csv           # Vehicle registration shares by state/fuel type
+│   ├── afdc_vehicle_shares.csv           # Vehicle registration shares by state/fuel type (2023 & 2024)
+│   ├── afdc_growth_deltas.csv            # AFDC share deltas (2024 − 2023) by state
 │   ├── emission_factors.csv              # EPA emission factors (kg CO2 per unit by fuel)
 │   ├── buildings_total_emissions.csv     # Pre-calculated buildings emissions (city × year)
 │   ├── transport_emissions.csv           # Pre-calculated transport emissions (year only)
@@ -455,6 +463,7 @@ data/
     ├── aeo_carbon_intensity.csv          # Grid carbon intensity by region × year
     ├── aeo_mpg.csv                       # Vehicle MPG by type × year
     ├── aeo_freight_efficiency.csv        # Freight truck MPG by category × year
+    ├── aeo_ldv_sales_shares.csv          # Car/truck LDV sales fractions by region × year
     └── aeo_regional_electricity.csv      # Regional electricity sales & CO2 (source table)
 ```
 
@@ -465,11 +474,13 @@ data/
 | `fixed_data.csv` | Excel model | NG emission factor (53.06 kg CO2/MMBtu), MWh/MMBtu (0.3), LDV/HDV shares |
 | `cities/*.csv` | SLOPE (NREL) | City-level electricity and NG consumption (MMBtu), inventory totals |
 | `fhwa_vmt.csv` | FHWA HM-71 | Annual VMT per city, scaled from urbanized area to city proper by population |
-| `afdc_vehicle_shares.csv` | AFDC (DOE) | 2024 Light-Duty Vehicle registration shares by fuel type per state |
+| `afdc_vehicle_shares.csv` | AFDC (DOE) | 2023 and 2024 Light-Duty Vehicle registration shares by fuel type per state (7 types, normalized) |
+| `afdc_growth_deltas.csv` | AFDC (DOE) | Pre-computed share deltas (2024 − 2023) by state and fuel type |
 | `emission_factors.csv` | EPA 2025 Hub | kg CO2 per gallon/unit for each fuel type |
 | `aeo_carbon_intensity.csv` | AEO 2025 Table 54 | MT CO2/MWh by electricity market region, 2024-2050 |
 | `aeo_mpg.csv` | AEO 2025 | Miles per gallon by vehicle/fuel type, 2024-2050 |
 | `aeo_freight_efficiency.csv` | AEO 2025 Table 49 | Freight truck MPG by fuel type, 2024-2050 |
+| `aeo_ldv_sales_shares.csv` | AEO 2025 Table 38 | Car vs. truck LDV sales fractions by census division and year |
 | `buildings_total_emissions.csv` | Derived from Excel | Total buildings emissions (electricity + NG) per city per year |
 | `electricity_emissions.csv` | Derived from Excel | Electricity-related CO2 emissions per city per year |
 | `ng_*.csv` | Derived from Excel | NG consumption (MMBtu) and emissions (MT CO2e) per city per year |

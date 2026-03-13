@@ -1,17 +1,14 @@
-# Transport Module Refactoring: From Excel to City-Specific Python
+# Transport Module: Excel to Python Translation
 
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-2. [Version Comparison](#2-version-comparison)
-3. [v1: Original Excel Model](#3-v1-original-excel-model)
-4. [v2: City-Specific Refactor](#4-v2-city-specific-refactor)
-5. [v3: Car/Truck MPG Split and Data Corrections](#5-v3-cartruck-mpg-split-and-data-corrections)
-6. [Python Module Reference](#6-python-module-reference)
-7. [Data Files Reference](#7-data-files-reference)
-8. [Excel Formula to Python Mapping](#8-excel-formula-to-python-mapping)
-9. [Validation Results](#9-validation-results)
-10. [Versioned Files](#10-versioned-files)
+2. [Original Excel Model](#2-original-excel-model)
+3. [Python Implementation](#3-python-implementation)
+4. [Python Module Reference](#4-python-module-reference)
+5. [Data Files Reference](#5-data-files-reference)
+6. [Excel Formula to Python Mapping](#6-excel-formula-to-python-mapping)
+7. [Validation Results](#7-validation-results)
 
 ---
 
@@ -19,39 +16,24 @@
 
 baseline-builder-py is a Python-based Integrated Assessment Model that calculates greenhouse gas (GHG) emissions savings for 25 US cities across projection years 2027 through 2050. The model covers two sectors: **Buildings** (residential and commercial) and **Transportation**. It was refactored from an Excel-based model into a Python/conda application to improve transparency, reproducibility, and city-level accuracy.
 
-The transportation module underwent two major refactoring phases:
+The Python implementation improves on the Excel model in several ways:
 
-- **v2 (City-Specific Refactor):** Replaced the single reference city approach (Atlanta) with city-specific data pipelines. Each of the 25 cities now uses its own vehicle miles traveled (VMT), state-level fuel mix, and regional electricity carbon intensity. This was the foundational shift from a one-size-fits-all calculation to a geographically differentiated model.
-
-- **v3 (MPG Split and Data Corrections):** Added car/truck MPG differentiation using separate AEO fuel economy values, introduced dynamic light-duty vehicle (LDV) sales fractions by census division and year, corrected freight efficiency lookups, fixed a fuel allocation error for electric hybrid freight vehicles, and added the SPPC electricity market region directly to the carbon intensity dataset.
-
-Together, these refactoring phases transformed a static, single-city Excel spreadsheet into a modular, testable, and extensible Python application that produces city-specific GHG emissions projections validated against the original Excel model.
-
----
-
-## 2. Version Comparison
-
-The following table summarizes the key differences across all three versions of the transport module:
-
-| Feature | v1 (Excel Original) | v2 (City-Specific) | v3 (MPG Split) |
-|---|---|---|---|
-| **VMT source** | Atlanta only (5,598,764,246 annual VMT) | FHWA data per city (25 unique baselines) | FHWA data per city (25 unique baselines) |
-| **Fuel mix** | Georgia AFDC registration shares | State-specific AFDC shares (per city's state) | State-specific AFDC shares (per city's state) |
-| **Carbon intensity** | SRSE (Atlanta's region) only | City's AEO region; SPPC falls back to MISC | City's AEO region; SPPC available directly |
-| **Car/truck MPG** | Same MPG value for both | Same MPG value for both | Separate car (AEO R9) and truck (AEO R24) |
-| **Car/truck fraction** | Hardcoded 0.42 / 0.58 | Hardcoded 0.42 / 0.58 | Dynamic from AEO LDV sales shares by region and year |
-| **Freight efficiency** | First CSV match (weight-class-specific) | First CSV match (weight-class-specific) | Last CSV match (average across weight classes, AEO R155-R160) |
-| **freight_ehybrid allocation** | To gasoline (R13) | To diesel (R14) -- bug introduced | To gasoline (R13) -- corrected to match Excel |
-| **SPPC region** | N/A (SRSE only) | Falls back to MISC region | Available directly in carbon intensity data |
-| **Python modules** | N/A (Excel only) | transport.py, city.py, config.py, data_loader.py | Same modules, updated with corrections |
+- **City-specific data pipeline:** Each city uses its own FHWA VMT, state-level AFDC fuel shares, and regional carbon intensity — the Excel model used Atlanta as a reference city for all 25 cities.
+- **Flat VMT growth with AFDC share evolution:** Total VMT grows at a flat 0.6%/year (FHWA national trend). Fuel shares evolve using AFDC 2024 shares plus a fixed growth delta (2024 − 2023), replacing per-technology AEO Table 41 compound growth rates.
+- **Biodiesel as 7th fuel type:** Biodiesel is included as a distinct fuel type throughout the pipeline (VMT allocation, fuel consumption, emissions). Biodiesel gallons are aggregated into the diesel emissions bucket using the diesel emission factor (10.21 kg CO2/gal).
+- **Separate car/truck MPG:** Cars use AEO Row 9 MPG values and trucks use AEO Row 24, rather than a single MPG for both.
+- **Dynamic car/truck fractions:** Light-duty vehicle car/truck fractions come from AEO LDV sales shares by census division and year, replacing hardcoded 0.42/0.58 values.
+- **Corrected freight efficiency:** Uses the average across weight classes (AEO R155-R160) rather than a specific weight class. Freight efficiency for Plug-in Diesel Hybrid and Electric Hybrid now has non-zero values for 2024-2025 (see Change Log below).
+- **SPPC carbon intensity:** Available directly in the dataset, eliminating any fallback.
+- **AFDC shares normalized:** The 7 fuel types used in the model (gasoline, diesel, ethanol, electric, PHEV, hybrid, biodiesel) are normalized to sum to 1.0, excluding minor fuel types (CNG, propane, hydrogen, methanol) that collectively represent <0.006% of registrations.
 
 ---
 
-## 3. v1: Original Excel Model
+## 2. Original Excel Model
 
 ### Overview
 
-The original Transport tab in the Excel model calculates emissions for a single reference city -- Atlanta -- and applies those values to all 25 cities in the Findings tab. This means that every city receives the same transportation emissions estimate regardless of its actual vehicle fleet, travel patterns, state fuel mix, or regional electricity grid.
+The original Transport tab in the Excel model calculates emissions for whichever city is selected in the Findings tab. The Transport tab uses dynamic cell references (B41=city from Findings!B3, B42=state from Findings!B4, B43=region from Findings!B5) so that when the Findings tab is switched to a different city, all transport lookups (VMT, AFDC shares, carbon intensity) update accordingly.
 
 ### Formula Chain
 
@@ -59,28 +41,36 @@ The Excel calculation proceeds through the following steps:
 
 **Step 1: Total VMT (Row 44)**
 
-The model looks up Atlanta's total vehicle miles traveled from FHWA data:
+The model looks up the selected city's total vehicle miles traveled from FHWA data:
 
-- `R44 = XLOOKUP(city, FHWA) * 1000 = 5,598,764,246`
+- `R44 = XLOOKUP(B41, FHWA!A9:A33, FHWA!AB9:AB33) * 1000`
+- Where B41 = Findings!B3 (the city name)
 
-The raw FHWA value is in thousands, so it is multiplied by 1,000 to obtain actual annual VMT.
+The raw FHWA value is in thousands, so it is multiplied by 1,000 to obtain actual annual VMT. For Atlanta, this yields 5,598,764,246.
 
 **Step 2: VMT by Fuel Type (Rows 45-50)**
 
-Total VMT is split across fuel types using Georgia's AFDC vehicle registration shares:
+Total VMT is split across fuel types using the city's state AFDC vehicle registration shares:
 
-- `R45-R50 = Total VMT * AFDC share (Georgia)`
+- `R45-R50 = $B$44 * XLOOKUP($B$42, B$67:AZ$67, B68:AZ68)`
+- Where $B$42 = Findings!B4 (the city's state)
 
-This produces VMT for gasoline, diesel, flex-fuel (ethanol), electric, plug-in hybrid, and hybrid vehicles.
+This produces VMT for seven fuel types: gasoline, diesel, flex-fuel (ethanol), electric, plug-in hybrid, hybrid, and biodiesel.
 
-**Step 3: VMT Growth Projections (Rows 70-86)**
+**Step 3: VMT Growth Projections**
 
-VMT growth rates are drawn from AEO 2025 Table 41, differentiated by vehicle technology:
+Total VMT grows at a flat 0.6%/year national growth rate (FHWA):
 
-- `R70-R86 = growth rates by fuel technology`
-- `R45 col E+ = VMT(year-1) * (1 + growth_rate)`
+- `total_vmt(Y) = total_vmt(2024) * (1.006)^(Y − 2024)`
 
-Each subsequent year's VMT is calculated by compounding the prior year's value.
+Fuel type shares evolve using AFDC growth deltas (Transport R88-R94):
+
+- Year 1 (2024): shares = AFDC 2024 registration shares (R72-R78)
+- Year 2+ (2025-2050): shares = 2024_share + growth_delta (fixed, not cumulative)
+- Shares are clamped ≥ 0 and re-normalized to sum to 1.0
+- `fuel_vmt(Y) = total_vmt(Y) * fuel_share(Y)`
+
+The growth delta is the difference between 2024 and 2023 AFDC shares (R88-R94), applied as a single step for all future years.
 
 **Step 4: Fuel Consumption (Rows 13-16)**
 
@@ -104,58 +94,42 @@ Fuel consumption is multiplied by EPA emission factors and divided by 1,000 to c
 
 - `R4 = sum(R7:R10)`
 
-### Key Limitations
+### Key Characteristics
 
-- All 25 cities receive Atlanta's transport emissions, regardless of geography.
-- No variation by city VMT levels (cities range from under 1 billion to over 10 billion annual VMT).
-- No variation by state fuel mix (e.g., California has very different EV adoption than Georgia).
-- No variation by regional grid carbon intensity (e.g., the Pacific Northwest has much cleaner electricity than the Southeast).
+- The Transport tab is a single-city worksheet that recalculates for whichever city is selected in the Findings tab.
+- Per-city VMT, state-level fuel mix, and regional carbon intensity are all handled via dynamic cell references (B41, B42, B43).
+- Car/truck MPG uses a single value (not split by vehicle class).
+- Car/truck LDV fractions are fixed at 0.42/0.58 rather than varying by region and year.
 
 ---
 
-## 4. v2: City-Specific Refactor
+## 3. Python Implementation
 
-### Changes Introduced
+### Improvements Over Excel
 
-The v2 refactor replaced the single-city approach with a fully city-specific data pipeline:
+The Python implementation addresses all limitations of the Excel model:
 
-1. **City-specific VMT from FHWA data.** Each of the 25 cities now uses its own baseline VMT from the Federal Highway Administration, producing 25 different starting points for the projection.
+1. **City-specific VMT from FHWA.** Each of the 25 cities uses its own total VMT from the FHWA dataset. City-level total VMT ranges from approximately 0.8 billion (smaller cities like Lansing) to over 10 billion (larger metros like Philadelphia). `fhwa_vmt.csv` and `CITY_STATE_MAP` drive per-city lookups.
 
-2. **State-specific AFDC fuel shares.** Vehicle registration data from the Alternative Fuels Data Center is now looked up by each city's state, reflecting differences in vehicle fleet composition (e.g., higher EV shares in California vs. lower shares in Texas).
+2. **State-specific AFDC fuel shares.** State-level vehicle fleet composition varies significantly. For example, California (Oakland) has much higher EV registration shares than Georgia (Atlanta) or Mississippi (Jackson). `afdc_vehicle_shares.csv` and `CITY_STATE_MAP` drive per-state lookups.
 
-3. **Region-specific carbon intensity.** Each city is mapped to one of 12 AEO electricity market regions, so electricity emissions reflect the actual grid mix. Cities served by cleaner grids (e.g., Pacific Northwest hydro) produce lower electricity-related transport emissions than those on coal-heavy grids.
+3. **Region-specific carbon intensity.** Regional grid cleanliness varies by AEO electricity market region. The Pacific Northwest (hydro-heavy) has much lower carbon intensity than the Southeast (coal/gas-heavy). `aeo_carbon_intensity.csv` and `CITY_REGION_MAP` drive per-region lookups.
 
-### What Replaced What: Excel Cell-Level Mapping
+4. **Car/truck MPG split.** Cars now use the MPG value from AEO Row 9, and trucks use the separate value from AEO Row 24. The `aeo_mpg.csv` file includes a `vehicle_class` column containing "car" or "truck" to disambiguate vehicle types.
 
-The v2 refactor replaced five specific hardcoded values from the Excel Transport tab with city-specific lookups:
+5. **Dynamic car/truck fractions.** Instead of hardcoded 0.42/0.58 values, car and truck fractions are drawn from AEO LDV sales shares (AEO Rows 103-107), which vary by census division (South Atlantic, Middle Atlantic) and projection year. A `CITY_AEO_SALES_REGION_MAP` in `config.py` maps each of the 25 cities to its appropriate AEO sales region.
 
-| Excel Cell | v1 (All Cities = Atlanta) | v2 (Per City) | Data Source |
-|---|---|---|---|
-| R42 (City) | "Atlanta" hardcoded | Each of 25 cities | `config.CITY_REGION_MAP` keys |
-| R43 (Region) | "SRSE" | Per-city AEO region | `config.CITY_REGION_MAP[city]` |
-| R44 (Total VMT) | 5,598,764,246 (Atlanta) | FHWA lookup per city | `fhwa_vmt.csv` |
-| R45-R50 (VMT by fuel) | R44 x Georgia AFDC shares | R44 x city's state AFDC shares | `afdc_vehicle_shares.csv` |
-| R10 (Electricity CI) | XLOOKUP("SRSE", AEO CI) | XLOOKUP(city_region, AEO CI) | `aeo_carbon_intensity.csv` |
+6. **SPPC carbon intensity available directly.** The SPPC electricity market region is included in `aeo_carbon_intensity.csv`, eliminating any need for fallback lookups.
 
-These replacements are driven by three new mapping tables and three new CSV data files, none of which existed in v1:
+7. **Freight efficiency fix.** The freight efficiency lookup uses the last matching row in the CSV, which corresponds to the average across all weight classes (AEO Rows 155-160).
 
-1. **FHWA VMT (R44)** -- City-level total VMT ranges from approximately 0.8 billion (smaller cities like Lansing) to over 10 billion (larger metros like Philadelphia). In v1, all 25 cities used Atlanta's 5.6 billion VMT. The new `fhwa_vmt.csv` and `CITY_STATE_MAP` enable per-city lookups.
+8. **freight_ehybrid allocation corrected.** Electric hybrid freight vehicles are correctly allocated to the gasoline fuel category (R13), matching the original Excel model.
 
-2. **AFDC Fuel Shares (R45-R50)** -- State-level vehicle fleet composition varies significantly. For example, California (Oakland) has much higher EV registration shares than Georgia (Atlanta) or Mississippi (Jackson). The new `afdc_vehicle_shares.csv` and `CITY_STATE_MAP` enable per-state lookups.
+9. **Known Excel bug documented.** Transport Row 21 (car flex-fuel consumption) references cell E46 (diesel VMT) instead of E47 (flex VMT). This is a confirmed error in the original Excel model. The Python implementation uses the correct flex VMT value.
 
-3. **Carbon Intensity (R10)** -- Regional grid cleanliness varies by AEO electricity market region. The Pacific Northwest (hydro-heavy) has much lower carbon intensity than the Southeast (coal/gas-heavy). The new `aeo_carbon_intensity.csv` (with all 12 regions) and `CITY_REGION_MAP` enable per-region lookups.
+### Python Modules
 
-### Items Still Approximated in v2
-
-- **Car/truck MPG:** A single MPG value was used for both cars and trucks because the `aeo_mpg.csv` file did not yet include a `vehicle_class` column to distinguish them.
-- **Car/truck fraction:** Hardcoded at 0.42 (cars) and 0.58 (trucks) for all cities and years.
-- **SPPC electricity market region:** The SPPC region was not yet in the carbon intensity dataset, so cities in that region fell back to the MISC (miscellaneous) region.
-- **Freight efficiency:** Used the first matching row in the CSV, which corresponds to a specific weight class rather than the average across all weight classes.
-- **freight_ehybrid allocation:** Electric hybrid freight vehicles were incorrectly allocated to the diesel fuel category instead of gasoline.
-
-### Python Modules Created
-
-Four core Python modules were created during the v2 refactor:
+Four core Python modules implement the transport pipeline:
 
 - **`iam/transport.py`** -- Core transport calculation functions: VMT allocation by fuel type, year-over-year projection, fuel consumption calculation, and emissions estimation.
 - **`iam/city.py`** -- The City class that orchestrates the full calculation pipeline from data loading through emissions output.
@@ -169,76 +143,30 @@ Four core Python modules were created during the v2 refactor:
 | `data/inputs/fhwa_vmt.csv` | FHWA VMT per city (daily VMT in thousands, population ratio, total annual VMT) |
 | `data/inputs/afdc_vehicle_shares.csv` | State-level AFDC vehicle registration shares by fuel type |
 | `data/aeo/aeo_carbon_intensity.csv` | Regional electricity grid carbon intensity by year (MT CO2/MWh) |
-| `data/aeo/aeo_mpg.csv` | Vehicle type MPG projections by year |
+| `data/aeo/aeo_mpg.csv` | Vehicle type MPG projections by year, with `vehicle_class` column |
 | `data/aeo/aeo_freight_efficiency.csv` | Freight truck fuel efficiency by weight class, fuel type, and year |
+| `data/aeo/aeo_ldv_sales_shares.csv` | Car vs. truck LDV sales fractions by census division and year |
 | `data/inputs/emission_factors.csv` | EPA emission factors (kg CO2 per unit fuel) |
 
-### Numerical Impact
+### Configuration
 
-For Atlanta in projection year 2027:
-
-- **v1 (Excel):** 1,603,108 MT CO2
-- **v2 (Python):** approximately 1,475,530 MT CO2
-
-The difference reflects the combined effect of the v2 approximations (single MPG, hardcoded car/truck fractions, freight efficiency lookup method, and the freight_ehybrid misallocation).
+| Item | Detail |
+|---|---|
+| `CITY_REGION_MAP` | Maps 25 cities to their AEO electricity market region (12 regions total) |
+| `CITY_STATE_MAP` | Maps 25 cities to their state (for AFDC fuel share lookups) |
+| `CITY_AEO_SALES_REGION_MAP` | Maps 25 cities to their AEO LDV sales region |
 
 ---
 
-## 5. v3: Car/Truck MPG Split and Data Corrections
-
-### Changes from v2
-
-The v3 refactor addressed all remaining approximations and data corrections:
-
-1. **Car/truck MPG split.** Cars now use the MPG value from AEO Row 9, and trucks use the separate value from AEO Row 24. The `aeo_mpg.csv` file was updated with a `vehicle_class` column containing "car" or "truck" to disambiguate vehicle types that previously had duplicate names.
-
-2. **Dynamic car/truck fractions.** Instead of hardcoded 0.42/0.58 values, car and truck fractions are now drawn from AEO LDV sales shares (AEO Rows 103-107), which vary by census division (South Atlantic, Middle Atlantic) and projection year. A new `CITY_AEO_SALES_REGION_MAP` in `config.py` maps each of the 25 cities to its appropriate AEO sales region.
-
-3. **SPPC carbon intensity available directly.** The SPPC electricity market region is now included in `aeo_carbon_intensity.csv`, eliminating the need for the MISC fallback. The `TRANSPORT_CI_REGION_FALLBACK` configuration was removed.
-
-4. **Freight efficiency fix.** The freight efficiency lookup now uses the last matching row in the CSV, which corresponds to the average across all weight classes (AEO Rows 155-160). Previously, the first match was used, which corresponded to a specific weight class.
-
-5. **freight_ehybrid allocation corrected.** Electric hybrid freight vehicles are now correctly allocated to the gasoline fuel category (R13), matching the original Excel model. In v2, they had been incorrectly placed in diesel (R14).
-
-6. **Known Excel bug documented.** Transport Row 21 (car flex-fuel consumption) references cell E46 (diesel VMT) instead of E47 (flex VMT). This is a confirmed error in the original Excel model. The Python implementation uses the correct flex VMT value.
-
-### New and Updated Data Files
-
-| File | Change |
-|---|---|
-| `data/aeo/aeo_ldv_sales_shares.csv` | **New.** Car vs. truck LDV sales fractions by census division and year. |
-| `data/aeo/aeo_mpg.csv` | **Updated.** Added `vehicle_class` column ("car" or "truck") to distinguish vehicle types. |
-| `data/aeo/aeo_carbon_intensity.csv` | **Updated.** Added SPPC region data directly. |
-
-### Configuration Changes
-
-| Change | Detail |
-|---|---|
-| **Added:** `CITY_AEO_SALES_REGION_MAP` | Maps 25 cities to their AEO LDV sales region (South Atlantic or Middle Atlantic). |
-| **Removed:** `TRANSPORT_CI_REGION_FALLBACK` | No longer needed since SPPC is available in the carbon intensity data. |
-
-### Numerical Impact
-
-For Atlanta in projection year 2027:
-
-- **v2 (Python):** approximately 1,475,530 MT CO2
-- **v3 (Python):** approximately 1,626,675 MT CO2
-- **v1 (Excel):** 1,603,108 MT CO2
-- **Difference (v3 vs. Excel):** approximately 23,567 MT CO2 (1.47%)
-
-The 23,567 MT CO2 difference between v3 and Excel is exactly explained by the Excel Row 21 bug: Python correctly uses flex VMT for car flex-fuel consumption, while Excel incorrectly uses diesel VMT. The additional ethanol consumption from the correct flex VMT accounts for the entire discrepancy.
-
----
-
-## 6. Python Module Reference
+## 4. Python Module Reference
 
 ### iam/transport.py -- Core Transport Calculations
 
 This module contains the pure calculation functions that form the transport emissions pipeline:
 
-- **`calculate_initial_vmt_by_fuel(total_vmt, state, afdc_shares)`** -- Takes a city's total annual VMT, its state, and the AFDC vehicle registration shares DataFrame. Returns a dictionary of VMT allocated by fuel type (gasoline, diesel, flex/ethanol, electric, PHEV, hybrid).
+- **`calculate_initial_vmt_by_fuel(total_vmt, state, afdc_shares)`** -- Takes a city's total annual VMT, its state, and the AFDC vehicle registration shares DataFrame. Returns a dictionary of VMT allocated by fuel type (gasoline, diesel, flex/ethanol, electric, PHEV, hybrid, biodiesel). Filters to 2024 shares if a `year` column is present.
 
-- **`project_vmt(initial_vmt_by_fuel, years)`** -- Takes the initial VMT-by-fuel dictionary and projects it forward across the specified years using AEO growth rates. Returns a DataFrame of projected VMT by fuel type and year.
+- **`project_vmt(total_vmt, afdc_shares, afdc_deltas, years)`** -- Projects VMT forward using flat 0.6%/year national growth with AFDC share evolution. Takes the base year total VMT, AFDC 2024 shares dict, growth deltas dict, and list of projection years. Returns a DataFrame of projected VMT by fuel type and year.
 
 - **`calculate_fuel_consumption(vmt_by_fuel, year, aeo_mpg, car_fraction, truck_fraction, aeo_freight)`** -- Converts projected VMT into fuel consumption (gallons or MWh) using vehicle-class-specific MPG values, car/truck fractions, and freight efficiency data. Returns a dictionary of fuel consumption by fuel category (gasoline, diesel, ethanol, electricity).
 
@@ -265,7 +193,8 @@ All constants and mapping tables are centralized here:
 - **`CITY_REGION_MAP`** -- Maps 25 cities to their AEO electricity market region (12 regions total).
 - **`CITY_STATE_MAP`** -- Maps 25 cities to their state (for AFDC fuel share lookups).
 - **`CITY_AEO_SALES_REGION_MAP`** -- Maps 25 cities to their AEO LDV sales region (South Atlantic or Middle Atlantic).
-- **`VMT_GROWTH_RATES`** -- AEO 2025 Table 41 growth rates per fuel technology and year.
+- **`NATIONAL_VMT_GROWTH_RATE`** (0.006) -- Flat 0.6%/year national VMT growth rate from FHWA.
+- **`VMT_GROWTH_RATES`** -- AEO 2025 Table 41 growth rates per fuel technology (deprecated; retained as backward-compat alias for `VMT_GROWTH_RATES_AEO_TABLE41`).
 - **`EMISSION_FACTORS_KG_CO2`** -- EPA emission factors in kilograms of CO2 per unit of fuel.
 - **`LDV_SHARE`** (0.9) and **`HDV_SHARE`** (0.1) -- Light-duty and heavy-duty vehicle VMT split.
 
@@ -280,12 +209,13 @@ All file I/O is isolated in this module:
 
 ---
 
-## 7. Data Files Reference
+## 5. Data Files Reference
 
 | File | Source | Contents |
 |---|---|---|
 | `data/inputs/fhwa_vmt.csv` | FHWA; Excel Transport R44 | City name, daily VMT (in thousands), population ratio, total annual VMT |
-| `data/inputs/afdc_vehicle_shares.csv` | AFDC; Excel Transport R90-R96 | State-level vehicle registration shares by fuel type (gasoline, diesel, flex, EV, PHEV, hybrid) |
+| `data/inputs/afdc_vehicle_shares.csv` | AFDC; Excel Transport R72-R78 (2024), R80-R86 (2023) | State-level vehicle registration shares by fuel type (7 types, normalized to sum to 1.0), with `year` column for 2023 and 2024 |
+| `data/inputs/afdc_growth_deltas.csv` | Excel Transport R88-R94 | Pre-computed share deltas (2024 − 2023) by state and fuel type |
 | `data/inputs/emission_factors.csv` | EPA; Excel Transport R52-R63 | Emission factors in kg CO2 per unit of fuel (gallon or MWh) |
 | `data/aeo/aeo_carbon_intensity.csv` | AEO 2025; Excel AEO R39-R50 | Regional electricity grid carbon intensity (MT CO2/MWh) by region and year |
 | `data/aeo/aeo_mpg.csv` | AEO 2025; Excel AEO R9, R24 | Vehicle type MPG projections by year, with `vehicle_class` column ("car" or "truck") |
@@ -296,7 +226,7 @@ All data files are stored as CSV and were extracted from the original Excel mode
 
 ---
 
-## 8. Excel Formula to Python Mapping
+## 6. Excel Formula to Python Mapping
 
 The following table maps the most important Excel formulas to their Python implementations:
 
@@ -304,7 +234,7 @@ The following table maps the most important Excel formulas to their Python imple
 |---|---|---|
 | Transport R44 | Total VMT = XLOOKUP(city, FHWA) * 1000 | `City._get_city_vmt()` -- looks up city in `fhwa_vmt.csv`, multiplies by 1000 |
 | Transport R45-R50 | VMT by fuel type = Total VMT * AFDC share | `calculate_initial_vmt_by_fuel()` -- total_vmt * state-specific AFDC share |
-| Transport R45 col E+ | VMT(year) = VMT(year-1) * (1 + growth_rate) | `project_vmt()` -- compounds VMT forward using AEO Table 41 growth rates |
+| Transport R45 col E+ | VMT(year) = total_vmt * (1.006)^(Y-2024) * share(Y) | `project_vmt()` -- flat 0.6% growth with AFDC share evolution |
 | Transport R20 | Car gasoline consumption = VMT_gas * LDV * car_frac / car_mpg | `calculate_fuel_consumption()` -- uses AEO R9 car MPG |
 | Transport R21 | Car flex-fuel consumption (Excel uses diesel VMT -- bug) | `calculate_fuel_consumption()` -- uses correct flex VMT |
 | Transport R22 | Car EV consumption = VMT_ev * LDV * car_frac / car_mpg | `calculate_fuel_consumption()` -- EV consumption in MWh |
@@ -327,56 +257,104 @@ The following table maps the most important Excel formulas to their Python imple
 | AEO R103-R107 | LDV sales shares (car/truck) by region and year | `get_ldv_sales_share(region, vehicle_type, year, sales_df)` |
 | AEO R155-R160 | Freight efficiency by weight class and fuel type | `get_mpg()` for freight -- uses last CSV match for average |
 
-**Known Excel Bug:** Transport R21 references cell E46 (diesel VMT) instead of E47 (flex VMT) for car flex-fuel consumption. The Python implementation uses the correct flex VMT. This is the sole source of the 1.47% difference between v3 and the Excel model for Atlanta 2027.
-
 ---
 
-## 9. Validation Results
+## 7. Validation Results
 
-### Atlanta 2027: Cross-Version Comparison
+### Atlanta: Excel vs Python (Baseline Module.xlsx)
 
-| Version | Total Emissions (MT CO2) | Notes |
+After correcting the Excel R21 bug and aligning AFDC shares and AEO freight data, Python matches the Excel model to floating-point precision for all projection years (2027–2050):
+
+| Year | Total Match | Gasoline | Diesel | Ethanol | Electricity |
+|---|---|---|---|---|---|
+| 2024 | +0.004% | +0.002% | +0.06% | 0.000% | 0.000% |
+| **2027–2050** | **0.000000%** | **0.000000%** | **0.000000%** | **0.000000%** | **0.000000%** |
+
+The 2024 residual (+0.004%) is caused by Excel Transport R39/R40 using hardcoded future-year AEO column references for freight PHEV/hybrid efficiency instead of the matching 2024 column. This does not affect projection years.
+
+### Atlanta 2027 Reference Values
+
+| Metric | Excel (MT CO2) | Python (MT CO2) |
 |---|---|---|
-| v1 (Excel) | 1,603,108 | Reference city calculation; applied uniformly to all 25 cities |
-| v2 (Python) | ~1,475,530 | City-specific VMT and fuel mix, but with single MPG and other approximations |
-| v3 (Python) | ~1,626,675 | Corrected MPG split, dynamic fractions, freight fix; +1.47% vs. Excel |
+| Total | 1,829,547.14 | 1,829,547.14 |
+| Gasoline | 1,626,389.46 | 1,626,389.46 |
+| Diesel | 57,896.68 | 57,896.68 |
+| Ethanol | 134,626.66 | 134,626.66 |
+| Electricity | 10,634.35 | 10,634.35 |
 
-### Explanation of the v3 vs. Excel Difference
+### Multi-City Validation
 
-The 23,567 MT CO2 difference between v3 (1,626,675) and the Excel model (1,603,108) is fully accounted for by a confirmed bug in the Excel model:
+Cities validated against `Baseline Module.xlsx` (city switched in Findings tab):
 
-- Excel Transport Row 21 (car flex-fuel consumption) references cell E46, which contains **diesel VMT**, instead of E47, which contains the correct **flex-fuel VMT**.
-- Because flex-fuel VMT differs from diesel VMT, the Python model (which uses the correct flex VMT) calculates a different ethanol consumption value.
-- The additional ethanol consumption produces exactly the observed 23,567 MT CO2 difference.
+| City | State | AEO Sales Region | 2027–2050 Match | Notes |
+|---|---|---|---|---|
+| Atlanta | Georgia | South Atlantic | **0.000000%** | Reference city |
+| Charlotte | North Carolina | South Atlantic | **0.000000%** | |
+| Nashville | Tennessee | South Atlantic | **0.000000%** | |
+| Cleveland | Ohio | Middle Atlantic | ~0.08–0.12% | Dynamic region difference (see below) |
+| Philadelphia | Pennsylvania | Middle Atlantic | ~0.08–0.13% | Dynamic region difference (see below) |
 
-This has been verified by manually substituting the Excel's incorrect VMT reference into the Python model and confirming that the outputs then match exactly.
+**AEO Sales Region Note:** Excel Transport tab hardcodes AEO R103/R104 (South Atlantic) for car/truck LDV sales fractions for all cities. Python intentionally uses region-appropriate AEO sales data via `CITY_AEO_SALES_REGION_MAP` (South Atlantic or Middle Atlantic). This produces ~0.1% differences for non-South-Atlantic cities. This is a deliberate improvement — the dynamic mapping can be reverted to match Excel if needed.
 
 ### Full City Coverage
 
-All 25 cities run successfully through both the v2 and v3 pipelines. The automated test suite includes 21 tests, all of which pass. Cities span diverse geographies, vehicle fleets, and electricity grid regions, confirming that the city-specific data pipeline handles the full range of input variations.
+All 25 cities run successfully through the Python pipeline. The automated test suite (17 tests) confirms correct behavior across diverse geographies, vehicle fleets, and electricity grid regions.
 
 ---
 
-## 10. Versioned Files
+## 8. Change Log
 
-Versioned copies of the four core modules are preserved in the `iam/versions/` directory to support comparison and rollback:
+### Excel Corrections
 
-| v2 File | v3 File | Module Purpose |
-|---|---|---|
-| `transport_v2.py` | `transport_v3.py` | Core transport calculation functions |
-| `city_v2.py` | `city_v3.py` | City class orchestrating the full pipeline |
-| `config_v2.py` | `config_v3.py` | Constants, mappings, and configuration |
-| `data_loader_v2.py` | `data_loader_v3.py` | CSV loading and data lookup functions |
+The following corrections were made to `Baseline Module.xlsx` during Python-Excel reconciliation:
 
-The v2 files correspond to git commit `0ddac27`. The v3 files represent the current working tree.
+**1. Transport R21 — Car flex-fuel VMT reference (all year columns)**
 
-To switch between versions for testing or comparison, the versioned files can be copied over the active modules in `iam/`. For example, to revert to v2 behavior:
+- **Before:** `=E49*$F57*AEO!E103/AEO!E11` — referenced R49 (TDI Diesel VMT)
+- **After:** `=E50*$F57*AEO!E103/AEO!E11` — references R50 (Flex-Fuel VMT)
+- **Impact:** Car flex-fuel consumption was underestimated by ~70% because diesel VMT (~121M) is much smaller than flex-fuel VMT (~407M for Atlanta). This caused total transport emissions to be ~1.7% low.
+- **Scope:** Fixed across all year columns (B through AB, 2024–2050).
 
-```
-cp iam/versions/transport_v2.py iam/transport.py
-cp iam/versions/city_v2.py iam/city.py
-cp iam/versions/config_v2.py iam/config.py
-cp iam/versions/data_loader_v2.py iam/data_loader.py
-```
+**2. AEO R159 — Plug-in Diesel Hybrid freight efficiency (2024–2025)**
 
-This approach preserves a complete audit trail of the refactoring process and allows side-by-side numerical validation between versions.
+- **Before:** 0.0 MPG for 2024 (col B) and 2025 (col C); first non-zero value at 2026 (col D) = 9.4955
+- **After:** 2024 = 9.3000, 2025 = 9.3900 (extrapolated from the 2026–2050 trend)
+- **Impact:** With zero efficiency, Transport R39 (freight PHEV consumption) divided by zero for 2024–2025. Excel R39 worked around this by hardcoding `AEO!D159` (the 2026 value) for the 2024–2026 columns. With non-zero values populated, the correct year-matched column can be used.
+- **Effect on projection years (2027–2050):** None — these already had non-zero values.
+
+**3. AEO R160 — Electric Hybrid freight efficiency (2024)**
+
+- **Before:** 0.0 MPG for 2024 (col B); first non-zero value at 2025 (col C) = 12.0398
+- **After:** 2024 = 11.9900 (extrapolated from the 2025–2050 trend)
+- **Impact:** With zero efficiency, Transport R40 (freight hybrid consumption) divided by zero for 2024. Excel R40 worked around this by hardcoding `AEO!C160` (the 2025 value) for the 2024 column. With the non-zero value populated, the correct year-matched column can be used.
+- **Effect on projection years (2027–2050):** None — these already had non-zero values.
+
+### Python-Side Data Corrections
+
+**4. AFDC vehicle shares — normalized to 7 fuel types**
+
+- **Before:** CSV included all 11 AFDC fuel types (including CNG, propane, hydrogen, methanol). The 7 fuel types used in the model summed to ~0.99995 instead of 1.0.
+- **After:** CSV re-extracted from Excel Transport R72-R78, which normalizes shares to the 7 fuel types used (gasoline, diesel, ethanol, electric, PHEV, hybrid, biodiesel), summing to exactly 1.0.
+- **Impact:** Eliminated a systematic -0.005% VMT allocation error across all fuel types and all cities.
+
+**5. AFDC growth deltas — re-extracted from Excel**
+
+- **Before:** Deltas computed from raw (un-normalized) 2024 and 2023 shares.
+- **After:** Re-extracted from Excel Transport R88-R94, which uses the normalized shares.
+- **Impact:** Consistent with the normalized shares; eliminates ~10⁻⁸ level differences in share evolution.
+
+**6. AEO freight efficiency CSV — updated with new non-zero values**
+
+- **Before:** `aeo_freight_efficiency.csv` had 0.0 for Plug-in Diesel Hybrid (2024–2025) and Electric Hybrid (2024).
+- **After:** Updated to match the corrected Excel AEO R159-R160 values.
+- **Impact:** Python freight PHEV/hybrid consumption now uses correct year-matched efficiency values instead of falling back to the first non-zero year.
+
+### Intentional Python–Excel Differences
+
+**7. AEO LDV sales region — dynamic vs hardcoded**
+
+- **Excel:** Transport R20/R27 formulas hardcode `AEO!E103/AEO!E104` (South Atlantic car/truck fractions) for all cities.
+- **Python:** Uses `CITY_AEO_SALES_REGION_MAP` to assign each city to its geographically correct AEO census division (South Atlantic or Middle Atlantic).
+- **Impact:** Non-South-Atlantic cities (Cleveland, Philadelphia, Pittsburgh, etc.) show ~0.08–0.13% difference vs Excel. South Atlantic cities (Atlanta, Charlotte, Nashville, etc.) match exactly.
+- **Rationale:** Using region-appropriate car/truck fractions is more accurate. The Excel hardcoding appears to be an oversight rather than intentional.
+- **Reversibility:** Can be switched to match Excel by changing all entries in `CITY_AEO_SALES_REGION_MAP` to "South Atlantic".

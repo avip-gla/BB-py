@@ -1,3 +1,4 @@
+
 # baseline-builder-py
 
 Python/conda refactor of an Excel-based Integrated Assessment Model (IAM) that calculates GHG emissions savings for 25 US cities across projection years 2027-2050. Covers two sectors: **Buildings** (residential and commercial) and **Transportation**.
@@ -33,35 +34,29 @@ python scripts/run_model.py --cities Atlanta Charlotte Nashville --output xlsx
 | `python scripts/run_model.py --cities Atlanta Charlotte --output xlsx` | Multiple cities, Excel output |
 | `python scripts/run_model.py --all --summary --output both` | All 25 cities, CSV + Excel, print trends |
 
-### Compare Transport Versions (v1 / v2 / v3)
+### Compare Excel vs Python Transport
 
-The transport module has been refactored twice from the original Excel model. All 3 versions can be compared side-by-side:
-
-- **v1 (Excel):** Single reference city (Atlanta) applied to all 25 cities.
-- **v2 (City-Specific):** City-specific VMT, state fuel mix, regional carbon intensity. Hardcoded 0.42/0.58 car/truck fractions, same MPG for both.
-- **v3 (MPG Split):** Dynamic car/truck fractions from AEO LDV sales shares, separate car/truck MPG, SPPC carbon intensity, freight efficiency fix.
+Compare the original Excel model transport emissions against the current Python implementation for all 25 cities:
 
 ```bash
-# 3-version comparison table (v1 vs v2 vs v3) for all 25 cities
+# Excel vs Python comparison for all 25 cities
 python scripts/compare_versions.py
 
 # With fuel-type breakdown for a specific city
 python scripts/compare_versions.py --detail Atlanta
 
-# With version difference notes
+# With notes explaining differences
 python scripts/compare_versions.py --detail Atlanta --notes
 
 # Custom summary years
 python scripts/compare_versions.py --years 2027 2030 2040 2050
 
-# Export full comparison to CSV (25 cities x 24 years, fuel-type detail)
+# Export full comparison to CSV (25 cities x 24 years)
 python scripts/compare_versions.py --output outputs/csv/version_comparison.csv
 ```
 
-### Compare v1 (Excel) vs Current
-
 ```bash
-# Reference city (old) vs city-specific (current)
+# Alternate comparison script (Excel vs current)
 python scripts/compare_transport.py
 
 # With CSV export
@@ -84,93 +79,79 @@ python scripts/compare_cities.py --all --top 10
 python scripts/compare_cities.py --cities Atlanta Charlotte Nashville Memphis --plot
 ```
 
-### Generate Excel Tabs
+### Generate Excel Tab
 
 ```bash
-# Add v2 and v3 transport tabs to IAM_model.xlsx
+# Add "Transport (City-Specific)" tab to IAM_model.xlsx
 python scripts/build_transport_tabs.py
 
-# Add single "Transport (City-Specific)" tab (current version)
+# Alternate single-tab script
 python scripts/build_transport_tab.py
 ```
 
-The v2/v3 tabs include:
-- Documentation header with version description and change list
+The generated tab includes:
+- Documentation header with change list
 - City input parameters (state, region, FHWA VMT, CI region)
 - Total transport emissions by city (25 cities x 24 years)
 - Emissions by fuel type per city (gasoline, diesel, ethanol, electricity)
 - Fuel consumption per city
 - VMT by fuel type per city
-- Python module documentation (v3 tab only)
+- Python module documentation
 
 ## Testing
 
 ```bash
-# Run all 21 tests
 pytest tests/test_findings.py -v
 ```
 
-Tests cover:
+17 tests cover:
 - Emission factor constants (NG, MWh/MMBtu conversions)
 - Buildings emissions (electricity for Akron 2027, Atlanta 2027/2050, savings)
 - Transport emissions (Atlanta 2027, car/truck MPG split validation)
+- VMT projection (flat 0.6% growth, AFDC share evolution, biodiesel in diesel bucket)
 - SPPC carbon intensity (Kansas City uses SPPC directly, no fallback)
 - All 25 cities load and run successfully
-- v1/v2 transport version tests (reference values, hardcoded fractions, SPPC fallback, cross-version deltas)
 
 ## Documentation
 
 | Document | Audience | Description |
 |----------|----------|-------------|
-| [Transport Refactoring](docs/transport_refactoring.md) | Client / technical | Full story: v1 -> v2 -> v3, formula mappings, validation, data files |
+| [Transport Refactoring](docs/transport_refactoring.md) | Client / technical | Excel-to-Python translation, formula mappings, validation, data files |
 | [CLAUDE.md](CLAUDE.md) | Developer (Claude Code) | Architecture, coding standards, project structure |
-| Excel v2/v3 tabs | Client | In-workbook documentation with data and in-tab change lists |
+| Excel transport tab | Client | In-workbook documentation with data and change lists |
 
 ### Transport Refactoring Document
 
 `docs/transport_refactoring.md` covers:
 1. Executive Summary
-2. Version Comparison Table (v1/v2/v3 feature matrix)
-3. v1: Original Excel Model (formula chain, limitations)
-4. v2: City-Specific Refactor (changes, data files, numerical impact)
-5. v3: MPG Split & Data Corrections (6 changes, Excel bug, numerical impact)
-6. Python Module Reference (transport.py, city.py, config.py, data_loader.py)
-7. Data Files Reference (7 CSVs with sources)
-8. Excel Formula to Python Mapping (20+ formulas)
-9. Validation Results (Atlanta 2027 across all versions, Excel bug explanation)
-10. Versioned Files (where to find v2/v3 copies, how to switch)
-
-## Versioned Transport Modules
-
-Versioned copies of the 4 core modules are in `iam/versions/`:
-
-| File | Version | Source |
-|------|---------|--------|
-| `transport_v2.py` | v2 | Git commit `0ddac27` |
-| `transport_v3.py` | v3 | Current working tree |
-| `city_v2.py` / `city_v3.py` | v2 / v3 | Same |
-| `config_v2.py` / `config_v3.py` | v2 / v3 | Same |
-| `data_loader_v2.py` / `data_loader_v3.py` | v2 / v3 | Same |
-
-To revert to v2 for testing:
-```bash
-cp iam/versions/transport_v2.py iam/transport.py
-cp iam/versions/city_v2.py iam/city.py
-cp iam/versions/config_v2.py iam/config.py
-cp iam/versions/data_loader_v2.py iam/data_loader.py
-```
+2. Original Excel Model (formula chain, characteristics)
+3. Python Implementation (improvements, data files, numerical impact)
+4. Python Module Reference (transport.py, city.py, config.py, data_loader.py)
+5. Data Files Reference (8 CSVs with sources)
+6. Excel Formula to Python Mapping (20+ formulas)
+7. Validation Results (multi-city validation, Excel bug explanation)
+8. Change Log (Excel corrections, Python-side data fixes, intentional differences)
 
 ## Validation Reference
 
-Atlanta 2027 transport emissions across all 3 versions:
+Atlanta 2027 transport emissions (after Excel R21 bug fix):
 
 | Version | MT CO2 | vs Excel |
 |---------|--------|----------|
-| v1 (Excel) | 1,603,108 | -- |
-| v2 (Python) | 1,475,530 | -8.0% |
-| v3 (Python) | 1,626,675 | +1.5% |
+| Excel | 1,829,547.14 | -- |
+| Python | 1,829,547.14 | **0.000000%** |
 
-The 1.5% v3-vs-Excel difference (23,567 MT CO2) is fully explained by a confirmed Excel bug: Transport R21 references diesel VMT (E46) instead of flex VMT (E47) for car flex-fuel consumption.
+Multi-city validation (2027–2050):
+
+| City | Match | Notes |
+|------|-------|-------|
+| Atlanta (GA) | 0.000000% | South Atlantic region |
+| Charlotte (NC) | 0.000000% | South Atlantic region |
+| Nashville (TN) | 0.000000% | South Atlantic region |
+| Cleveland (OH) | ~0.1% | Middle Atlantic — intentional dynamic region mapping |
+| Philadelphia (PA) | ~0.1% | Middle Atlantic — intentional dynamic region mapping |
+
+Non-South-Atlantic cities show ~0.1% difference because Python uses region-appropriate AEO car/truck LDV sales fractions, while Excel hardcodes South Atlantic for all cities. See `docs/transport_refactoring.md` Section 8 for details.
 
 ## GitHub Setup
 
@@ -215,24 +196,24 @@ git push
 ```
 baseline-builder-py/
 ├── iam/                       # Main Python package
-│   ├── config.py              # Constants, city mappings, growth rates
+│   ├── config.py              # Constants, city mappings, VMT growth rate
 │   ├── data_loader.py         # CSV loading and lookups
-│   ├── transport.py           # Transport emissions (v3 — current)
+│   ├── transport.py           # Transport emissions (flat VMT growth + AFDC shares)
 │   ├── buildings.py           # Buildings emissions
 │   ├── city.py                # City class orchestrating all calculations
 │   ├── findings.py            # Top-level GHG aggregation
 │   ├── emissions.py           # Shared emissions logic
 │   ├── output.py              # CSV/Excel export
-│   └── versions/              # v2 and v3 module snapshots
+│   └── versions/              # Module snapshots for audit trail
 ├── scripts/                   # CLI tools
 │   ├── run_model.py           # Run model for cities
-│   ├── compare_versions.py    # Compare v1/v2/v3 transport
-│   ├── compare_transport.py   # Compare v1 vs current
+│   ├── compare_versions.py    # Compare Excel vs Python transport
+│   ├── compare_transport.py   # Compare Excel vs current
 │   ├── compare_cities.py      # Compare across cities
 │   ├── build_transport_tab.py # Generate single Excel tab
-│   └── build_transport_tabs.py # Generate v2 + v3 Excel tabs
+│   └── build_transport_tabs.py # Generate transport Excel tab
 ├── tests/
-│   └── test_findings.py       # 21 tests
+│   └── test_findings.py       # Integration tests
 ├── data/                      # Input data (CSVs extracted from Excel)
 ├── docs/                      # Documentation
 ├── outputs/                   # Generated CSV/Excel outputs

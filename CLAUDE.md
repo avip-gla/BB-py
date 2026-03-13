@@ -48,7 +48,8 @@ baseline-builder-py/
 │   ├── inputs/                # City-specific and fixed input CSVs
 │   │   ├── fixed_data.csv         # National/fixed parameters (all cities)
 │   │   ├── fhwa_vmt.csv          # FHWA VMT per city
-│   │   ├── afdc_vehicle_shares.csv # State AFDC registration shares
+│   │   ├── afdc_vehicle_shares.csv # State AFDC registration shares (2023 & 2024, normalized)
+│   │   ├── afdc_growth_deltas.csv # AFDC share deltas (2024 − 2023) by state
 │   │   ├── emission_factors.csv   # EPA emission factors
 │   │   ├── cities/                # Per-city parameter CSVs
 │   │   ├── electricity/           # Electricity consumption/emissions
@@ -56,8 +57,8 @@ baseline-builder-py/
 │   └── aeo/                   # Annual Energy Outlook tables
 │       ├── aeo_carbon_intensity.csv   # Regional grid CI (MT CO2/MWh)
 │       ├── aeo_mpg.csv               # Vehicle MPG with vehicle_class column
-│       ├── aeo_freight_efficiency.csv # Freight MPG by weight class
-│       └── aeo_ldv_sales_shares.csv   # Car/truck LDV sales fractions
+│       ├── aeo_freight_efficiency.csv # Freight MPG by weight class and fuel type
+│       └── aeo_ldv_sales_shares.csv   # Car/truck LDV sales fractions by census division
 ├── docs/
 │   └── transport_refactoring.md  # Comprehensive transport refactoring document
 ├── outputs/                   # GHG results as CSV and Excel
@@ -65,28 +66,28 @@ baseline-builder-py/
 │   └── xlsx/
 ├── iam/                       # Main Python package
 │   ├── __init__.py
-│   ├── config.py              # Global constants and configuration
-│   ├── data_loader.py         # Load fixed, city, AEO data
+│   ├── config.py              # Global constants, city mappings, VMT growth rate
+│   ├── data_loader.py         # Load fixed, city, AEO, AFDC data
 │   ├── buildings.py           # Buildings emissions module
-│   ├── transport.py           # Transportation emissions module (v3 — current)
+│   ├── transport.py           # Transportation emissions module
 │   ├── findings.py            # Top-level GHG aggregation (mirrors Findings tab)
 │   ├── emissions.py           # Shared emissions calculation logic
 │   ├── city.py                # City class: holds all city-level data and runs calcs
 │   ├── output.py              # CSV and Excel export utilities
-│   └── versions/              # Versioned copies of refactored modules
-│       ├── transport_v2.py / transport_v3.py
-│       ├── city_v2.py / city_v3.py
-│       ├── config_v2.py / config_v3.py
-│       └── data_loader_v2.py / data_loader_v3.py
+│   └── versions/              # Snapshot copies for audit trail (pre-AFDC/biodiesel refactor)
+│       ├── transport_v3.py    # v3: car/truck MPG split, before flat VMT growth + AFDC shares
+│       ├── city_v3.py
+│       ├── config_v3.py
+│       └── data_loader_v3.py
 ├── scripts/
 │   ├── run_model.py           # CLI entry point: run for one or many cities
-│   ├── compare_versions.py    # Compare v1/v2/v3 transport emissions
-│   ├── compare_transport.py   # Compare v1 (Excel) vs current transport
+│   ├── compare_versions.py    # Compare Excel vs Python transport emissions
+│   ├── compare_transport.py   # Compare Excel vs current transport
 │   ├── compare_cities.py      # Compare emissions across cities
 │   ├── build_transport_tab.py # Generate "Transport (City-Specific)" Excel tab
-│   └── build_transport_tabs.py # Generate v2 and v3 Excel tabs
+│   └── build_transport_tabs.py # Generate transport Excel tab
 ├── tests/
-│   └── test_findings.py       # 21 tests: emission factors, buildings, transport, v1/v2 versions
+│   └── test_findings.py       # Emission factors, buildings, transport integration tests
 └── IAM_model.xlsx             # Excel workbook with generated tabs
 ```
 
@@ -98,9 +99,8 @@ baseline-builder-py/
 |----------------|------------------------------|------|
 | `Findings`      | `iam/findings.py`            | Top-level GHG savings aggregation by city and year |
 | `Buildings`     | `iam/buildings.py`           | Residential & commercial building emissions lookups and calcs |
-| `Transport`     | `iam/transport.py`           | Transportation sector emissions lookups and calcs (v3 — current) |
-| `Transport (v2)`| `scripts/build_transport_tabs.py` | Generated tab: city-specific with v2 approximations |
-| `Transport (v3)`| `scripts/build_transport_tabs.py` | Generated tab: MPG split with v3 corrections |
+| `Transport`     | `iam/transport.py`           | Transportation sector emissions lookups and calcs |
+| `Transport (City-Specific)` | `scripts/build_transport_tabs.py` | Generated tab: city-specific transport emissions |
 | `Electricity`   | `data/inputs/electricity/`   | City-level electricity usage data |
 | `NG`            | `data/inputs/ng/`            | City-level natural gas usage data |
 | `AEO`           | `data/aeo/`                  | Annual Energy Outlook tables and projections |
@@ -216,19 +216,18 @@ python scripts/run_model.py --all --summary --output both
 
 ## Comparing Versions
 
-The transport module has 3 versions: v1 (Excel), v2 (city-specific), v3 (MPG split).
-See `docs/transport_refactoring.md` for full details.
+See `docs/transport_refactoring.md` for full details on Excel-to-Python translation.
 
-### 3-version comparison (v1 vs v2 vs v3)
+### Excel vs Python comparison
 ```bash
 python scripts/compare_versions.py                                 # Summary for 2027/2036/2050
 python scripts/compare_versions.py --detail Atlanta                # + fuel-type breakdown
-python scripts/compare_versions.py --detail Atlanta --notes        # + version differences
+python scripts/compare_versions.py --detail Atlanta --notes        # + difference notes
 python scripts/compare_versions.py --years 2027 2030 2040 2050     # Custom years
 python scripts/compare_versions.py --output outputs/csv/version_comparison.csv  # Export CSV
 ```
 
-### v1 (Excel) vs current transport
+### Alternate comparison script
 ```bash
 python scripts/compare_transport.py                                # Terminal summary
 python scripts/compare_transport.py --output outputs/csv/transport_comparison.csv
@@ -244,19 +243,14 @@ python scripts/compare_cities.py --cities Atlanta Charlotte Nashville --plot
 
 ---
 
-## Generating Excel Tabs
+## Generating Excel Tab
 
-### v2 and v3 transport tabs
 ```bash
 python scripts/build_transport_tabs.py
 ```
-Adds two tabs to `IAM_model.xlsx`:
-- **"Transport (v2 — City-Specific)"** — hardcoded 0.42/0.58 fractions, same car/truck MPG
-- **"Transport (v3 — MPG Split)"** — dynamic fractions, separate car/truck MPG
+Adds "Transport (City-Specific)" tab to `IAM_model.xlsx` with: documentation header, city parameters, total emissions (25 cities × 24 years), emissions by fuel type, fuel consumption, VMT by fuel type, Python module documentation.
 
-Each tab includes: documentation header, city parameters, total emissions (25 cities × 24 years), emissions by fuel type, fuel consumption, VMT by fuel type.
-
-### Single transport tab (current version)
+### Alternate single-tab script
 ```bash
 python scripts/build_transport_tab.py
 ```
@@ -270,32 +264,13 @@ python scripts/build_transport_tab.py
 pytest tests/test_findings.py -v
 ```
 
-21 tests covering:
+17 tests covering:
 - Emission factor constants (NG, MWh/MMBtu conversions)
 - Buildings emissions (electricity, NG) for specific cities/years
 - Transport emissions (Atlanta 2027, car/truck MPG split validation)
+- VMT projection (flat 0.6% growth, AFDC share evolution, biodiesel in diesel bucket)
 - SPPC carbon intensity (direct lookup, no fallback)
 - All 25 cities load successfully
-- v1/v2 transport version validation (reference values, hardcoded fractions, SPPC fallback, cross-version deltas)
-
----
-
-## Versioned Transport Modules
-
-Versioned copies of the 4 core transport modules are in `iam/versions/`:
-
-| Version | Commit | Key characteristics |
-|---------|--------|---------------------|
-| v2 | `0ddac27` | City-specific VMT/fuel/CI; hardcoded 0.42/0.58 car/truck; same MPG; SPPC→MISC |
-| v3 | working tree | Dynamic car/truck fractions; separate MPG; SPPC direct; freight fix |
-
-To revert to v2 for testing:
-```bash
-cp iam/versions/transport_v2.py iam/transport.py
-cp iam/versions/city_v2.py iam/city.py
-cp iam/versions/config_v2.py iam/config.py
-cp iam/versions/data_loader_v2.py iam/data_loader.py
-```
 
 ---
 
@@ -305,8 +280,8 @@ cp iam/versions/data_loader_v2.py iam/data_loader.py
 |----------|---------|
 | `CLAUDE.md` | Developer guide for Claude Code (this file) |
 | `README.md` | User-facing usage guide |
-| `docs/transport_refactoring.md` | Comprehensive transport refactoring document (client-readable) |
-| Excel v2/v3 tabs | In-workbook documentation with data and change lists |
+| `docs/transport_refactoring.md` | Transport refactoring document (client-readable) |
+| Excel transport tab | In-workbook documentation with data and change lists |
 
 ---
 

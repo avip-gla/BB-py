@@ -225,6 +225,10 @@ def load_fhwa_vmt(path: Optional[str] = None) -> pd.DataFrame:
     Federal Highway Administration data for 2024, scaled from urbanized area
     totals to city proper using population ratios.
 
+    The Excel model looks up per-city VMT via XLOOKUP(B41, FHWA!A9:A33, ...).
+    This CSV provides the same per-city VMT baselines for the Python implementation,
+    ranging from ~0.8B to ~10B across the 25 cities.
+
     Args:
         path: Optional path override.
 
@@ -237,23 +241,46 @@ def load_fhwa_vmt(path: Optional[str] = None) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def load_afdc_vehicle_shares(path: Optional[str] = None) -> pd.DataFrame:
+def load_afdc_vehicle_shares(path: Optional[str] = None, year: Optional[int] = None) -> pd.DataFrame:
     """Load AFDC vehicle registration shares by state.
 
-    Source: Excel 'Transport' tab R90-R101.
-    2024 Light-Duty Vehicle Registration data from the Alternative Fuels Data Center.
+    Source: Excel 'Transport' tab R68-R74 (2024), R76-R82 (2023).
+    Light-Duty Vehicle Registration data from the Alternative Fuels Data Center.
     Shows the fraction of registered vehicles by fuel type for each state.
 
     Used to allocate total VMT among fuel types for the initial year (2024).
+    The CSV includes both 2023 and 2024 rows (distinguished by 'year' column).
+
+    Args:
+        path: Optional path override.
+        year: If provided, filter to this year only. If None, return all years.
+
+    Returns:
+        DataFrame with 'state', 'year' columns and fuel-type share columns.
+    """
+    if path is None:
+        path = INPUTS_DIR / "afdc_vehicle_shares.csv"
+    df = pd.read_csv(path)
+    if year is not None and "year" in df.columns:
+        df = df[df["year"] == year].reset_index(drop=True)
+    return df
+
+
+def load_afdc_growth_deltas(path: Optional[str] = None) -> pd.DataFrame:
+    """Load AFDC vehicle share growth deltas by state (2024 - 2023).
+
+    Source: Excel 'Transport' tab R85-R91.
+    Pre-computed deltas: 2024_share - 2023_share for each fuel type.
+    Used to project fuel shares beyond the base year: share(Y) = 2024_share + delta.
 
     Args:
         path: Optional path override.
 
     Returns:
-        DataFrame with 'state' column and fuel-type share columns.
+        DataFrame with 'state' column and fuel-type delta columns.
     """
     if path is None:
-        path = INPUTS_DIR / "afdc_vehicle_shares.csv"
+        path = INPUTS_DIR / "afdc_growth_deltas.csv"
     return pd.read_csv(path)
 
 
@@ -263,8 +290,8 @@ def load_transport_emissions(path: Optional[str] = None) -> pd.DataFrame:
     Source: Excel 'Transport' tab R4-R10.
     Total and per-fuel-type CO2 emissions from transportation.
 
-    Note: The Transport tab calculates emissions for the reference city (Atlanta).
-    For other cities, emissions are scaled by their relative VMT.
+    Note: The Transport tab recalculates for whichever city is selected in
+    the Findings tab. These pre-calculated values serve as validation references.
 
     Args:
         path: Optional path override.
@@ -326,6 +353,10 @@ def get_carbon_intensity(region: str, year: int,
 
     Source: Excel 'AEO' tab R39-R49 via XLOOKUP in Electricity tab.
     Excel formula: =XLOOKUP($B32, AEO!$A$39:$A$50, AEO!E$39:E$50)
+
+    The Excel model looks up per-city carbon intensity via
+    XLOOKUP($B43, AEO!$A39:$A50, ...) where $B43 = Findings!B5 (the city's
+    AEO region). The Python implementation replicates this using CITY_REGION_MAP.
 
     Args:
         region: AEO electricity market region code (e.g., 'SRSE', 'PJMW').
@@ -471,6 +502,7 @@ def load_all_data() -> dict:
         "aeo_ldv_sales": load_aeo_ldv_sales_shares(),
         "fhwa_vmt": load_fhwa_vmt(),
         "afdc_shares": load_afdc_vehicle_shares(),
+        "afdc_growth_deltas": load_afdc_growth_deltas(),
         "buildings_emissions": load_buildings_emissions(),
         "electricity_emissions": load_electricity_emissions(),
         "ng_emissions": load_ng_emissions(),

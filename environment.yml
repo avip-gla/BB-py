@@ -1,4 +1,4 @@
-name: IAM-py
+name: baseline-builder-py
 channels:
   - defaults
   - conda-forge
