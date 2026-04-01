@@ -1,0 +1,12 @@
+threshold,area_sqft,building_count
+full_summary,352290930,9438
+barea_gt_5k,343841894,6322
+barea_gt_10k,329608497,4365
+barea_gt_15k,318292500,3455
+barea_gt_20k,308271581,2883
+barea_gt_25k,299754724,2504
+barea_gt_30k,291604490,2209
+barea_gt_35k,284480557,1990
+barea_gt_40k,276438088,1777
+barea_gt_45k,270164673,1630
+barea_gt_50k,262826048,1477

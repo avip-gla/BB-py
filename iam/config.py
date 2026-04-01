@@ -22,7 +22,7 @@ OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 # ============================================================
 # Projection years
 # ============================================================
-PROJECTION_YEARS: List[int] = list(range(2027, 2051))
+PROJECTION_YEARS: List[int] = list(range(2026, 2051))
 BASE_YEAR: int = 2024
 
 # ============================================================

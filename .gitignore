@@ -1,5 +1,12 @@
 # Excel model files (large binaries)
 *.xlsx
+*.xlsm
+
+# Raw data sources (large, not needed to run model)
+data/raw/
+
+# Outputs (regenerable by running scripts)
+outputs/
 
 # Python
 __pycache__/
