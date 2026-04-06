@@ -1,4 +1,4 @@
-# baseline-builder-py
+# Baseline-Builder-py
 
 A Python model for calculating GHG emissions baselines and savings across 25 US cities, covering the **Buildings** and **Transportation** sectors from 2027 to 2050.
 
