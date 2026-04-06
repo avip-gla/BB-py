@@ -28,3 +28,6 @@ __pycache__/
 # Claude Code
 .claude/
 CLAUDE.md
+
+# Internal notes (not for public repo)
+NOTES.md

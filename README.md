@@ -1,221 +1,124 @@
-
 # baseline-builder-py
 
-Python/conda refactor of an Excel-based Integrated Assessment Model (IAM) that calculates GHG emissions savings for 25 US cities across projection years 2027-2050. Covers two sectors: **Buildings** (residential and commercial) and **Transportation**.
+A Python model for calculating GHG emissions baselines and savings across 25 US cities, covering the **Buildings** and **Transportation** sectors from 2027 to 2050.
 
-## Setup
+This is a Python refactor of an Excel-based Integrated Assessment Model (IAM). The Python version adds city-specific transport calculations validated against the original Excel formulas, and includes two supplementary policy modules (BPS and BRESE).
 
-```bash
-conda create -n baseline-builder-py python=3.11
-conda activate baseline-builder-py
-pip install -r requirements.txt
-```
+For setup, installation, and usage instructions see **[USAGE_GUIDE.md](USAGE_GUIDE.md)**.
 
-## Quick Start
+---
 
-```bash
-# Run the model for a single city
-python scripts/run_model.py --cities Atlanta
+## What This Model Does
 
-# Run all 25 cities with summary output
-python scripts/run_model.py --all --summary --output csv
+For each city, the model calculates annual GHG emissions and savings across two sectors:
 
-# Export to Excel
-python scripts/run_model.py --cities Atlanta Charlotte Nashville --output xlsx
-```
+**Buildings** — Emissions from electricity and natural gas consumption in residential and commercial buildings. Electricity emissions use AEO regional carbon intensity projections (declining over time as the grid decarbonizes). Natural gas emissions use a fixed EPA emission factor.
 
-## Scripts
+**Transportation** — Emissions from on-road vehicle travel. The model starts from each city's total VMT (from FHWA), grows it at a flat 0.6%/year national rate, allocates VMT across seven fuel types (gasoline, diesel, ethanol, EV, plug-in hybrid, hybrid, biodiesel) using AFDC state vehicle registration shares, converts VMT to fuel consumption using AEO MPG projections, and converts fuel to CO₂ using EPA emission factors and regional carbon intensity for electric vehicles.
 
-### Run the Model
+**Savings** — Computed as the difference between each year's emissions and the 2027 baseline, by sector and in total.
 
-| Command | Description |
-|---------|-------------|
-| `python scripts/run_model.py --cities Atlanta` | Single city, CSV output |
-| `python scripts/run_model.py --cities Atlanta Charlotte --output xlsx` | Multiple cities, Excel output |
-| `python scripts/run_model.py --all --summary --output both` | All 25 cities, CSV + Excel, print trends |
+---
 
-### Compare Excel vs Python Transport
-
-Compare the original Excel model transport emissions against the current Python implementation for all 25 cities:
-
-```bash
-# Excel vs Python comparison for all 25 cities
-python scripts/compare_versions.py
-
-# With fuel-type breakdown for a specific city
-python scripts/compare_versions.py --detail Atlanta
-
-# With notes explaining differences
-python scripts/compare_versions.py --detail Atlanta --notes
-
-# Custom summary years
-python scripts/compare_versions.py --years 2027 2030 2040 2050
-
-# Export full comparison to CSV (25 cities x 24 years)
-python scripts/compare_versions.py --output outputs/csv/version_comparison.csv
-```
-
-```bash
-# Alternate comparison script (Excel vs current)
-python scripts/compare_transport.py
-
-# With CSV export
-python scripts/compare_transport.py --output outputs/csv/transport_comparison.csv
-
-# Specific cities only
-python scripts/compare_transport.py --cities Atlanta Charlotte
-```
-
-### Compare Cities
-
-```bash
-# All 25 cities — emissions summary, savings rankings, trajectory, sector breakdown
-python scripts/compare_cities.py --all
-
-# Top 10 by total savings
-python scripts/compare_cities.py --all --top 10
-
-# Specific cities with matplotlib plots
-python scripts/compare_cities.py --cities Atlanta Charlotte Nashville Memphis --plot
-```
-
-### Generate Excel Tab
-
-```bash
-# Add "Transport (City-Specific)" tab to IAM_model.xlsx
-python scripts/build_transport_tabs.py
-
-# Alternate single-tab script
-python scripts/build_transport_tab.py
-```
-
-The generated tab includes:
-- Documentation header with change list
-- City input parameters (state, region, FHWA VMT, CI region)
-- Total transport emissions by city (25 cities x 24 years)
-- Emissions by fuel type per city (gasoline, diesel, ethanol, electricity)
-- Fuel consumption per city
-- VMT by fuel type per city
-- Python module documentation
-
-## Testing
-
-```bash
-pytest tests/test_findings.py -v
-```
-
-17 tests cover:
-- Emission factor constants (NG, MWh/MMBtu conversions)
-- Buildings emissions (electricity for Akron 2027, Atlanta 2027/2050, savings)
-- Transport emissions (Atlanta 2027, car/truck MPG split validation)
-- VMT projection (flat 0.6% growth, AFDC share evolution, biodiesel in diesel bucket)
-- SPPC carbon intensity (Kansas City uses SPPC directly, no fallback)
-- All 25 cities load and run successfully
-
-## Documentation
-
-| Document | Audience | Description |
-|----------|----------|-------------|
-| [Transport Refactoring](docs/transport_refactoring.md) | Client / technical | Excel-to-Python translation, formula mappings, validation, data files |
-| [CLAUDE.md](CLAUDE.md) | Developer (Claude Code) | Architecture, coding standards, project structure |
-| Excel transport tab | Client | In-workbook documentation with data and change lists |
-
-### Transport Refactoring Document
-
-`docs/transport_refactoring.md` covers:
-1. Executive Summary
-2. Original Excel Model (formula chain, characteristics)
-3. Python Implementation (improvements, data files, numerical impact)
-4. Python Module Reference (transport.py, city.py, config.py, data_loader.py)
-5. Data Files Reference (8 CSVs with sources)
-6. Excel Formula to Python Mapping (20+ formulas)
-7. Validation Results (multi-city validation, Excel bug explanation)
-8. Change Log (Excel corrections, Python-side data fixes, intentional differences)
-
-## Validation Reference
-
-Atlanta 2027 transport emissions (after Excel R21 bug fix):
-
-| Version | MT CO2 | vs Excel |
-|---------|--------|----------|
-| Excel | 1,829,547.14 | -- |
-| Python | 1,829,547.14 | **0.000000%** |
-
-Multi-city validation (2027–2050):
-
-| City | Match | Notes |
-|------|-------|-------|
-| Atlanta (GA) | 0.000000% | South Atlantic region |
-| Charlotte (NC) | 0.000000% | South Atlantic region |
-| Nashville (TN) | 0.000000% | South Atlantic region |
-| Cleveland (OH) | ~0.1% | Middle Atlantic — intentional dynamic region mapping |
-| Philadelphia (PA) | ~0.1% | Middle Atlantic — intentional dynamic region mapping |
-
-Non-South-Atlantic cities show ~0.1% difference because Python uses region-appropriate AEO car/truck LDV sales fractions, while Excel hardcodes South Atlantic for all cities. See `docs/transport_refactoring.md` Section 8 for details.
-
-## GitHub Setup
-
-### 1. Install Homebrew (macOS package manager)
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-Follow the on-screen instructions (requires sudo password). After installation, add Homebrew to your PATH if prompted.
-
-### 2. Install GitHub CLI
-
-```bash
-brew install gh
-```
-
-### 3. Authenticate with GitHub
-
-```bash
-gh auth login
-```
-
-Select **GitHub.com**, **HTTPS**, and follow the browser-based login flow.
-
-### 4. Create the repository and push
-
-```bash
-gh repo create baseline-builder-py --private --source=. --push
-```
-
-This creates a private repo on GitHub, sets it as the remote, and pushes the current branch.
-
-To push subsequent commits:
-
-```bash
-git push
-```
-
-## Project Structure
+## Repository Contents
 
 ```
 baseline-builder-py/
-├── iam/                       # Main Python package
-│   ├── config.py              # Constants, city mappings, VMT growth rate
-│   ├── data_loader.py         # CSV loading and lookups
-│   ├── transport.py           # Transport emissions (flat VMT growth + AFDC shares)
-│   ├── buildings.py           # Buildings emissions
-│   ├── city.py                # City class orchestrating all calculations
-│   ├── findings.py            # Top-level GHG aggregation
-│   ├── emissions.py           # Shared emissions logic
-│   ├── output.py              # CSV/Excel export
-│   └── versions/              # Module snapshots for audit trail
-├── scripts/                   # CLI tools
-│   ├── run_model.py           # Run model for cities
-│   ├── compare_versions.py    # Compare Excel vs Python transport
-│   ├── compare_transport.py   # Compare Excel vs current
-│   ├── compare_cities.py      # Compare across cities
-│   ├── build_transport_tab.py # Generate single Excel tab
-│   └── build_transport_tabs.py # Generate transport Excel tab
-├── tests/
-│   └── test_findings.py       # Integration tests
-├── data/                      # Input data (CSVs extracted from Excel)
-├── docs/                      # Documentation
-├── outputs/                   # Generated CSV/Excel outputs
-└── IAM_model.xlsx             # Excel workbook with generated tabs
+├── iam/          # Core IAM model (buildings + transport calculations)
+├── bps/          # Building Performance Standards policy module
+├── brese/        # Building Energy Code Savings (DOE BRESE) module
+├── scripts/      # Command-line tools: run, compare, plot
+├── tests/        # Test suite (17 tests)
+├── data/
+│   ├── inputs/   # City CSVs, FHWA VMT, AFDC shares, emission factors
+│   └── aeo/      # Annual Energy Outlook tables (MPG, carbon intensity, LDV sales)
+└── docs/         # Supplementary technical documentation
 ```
+
+---
+
+## Module Overview
+
+### `iam/` — Core IAM Model
+
+The main calculation package. Each module has a single responsibility:
+
+| Module | Role |
+|--------|------|
+| `city.py` | The `City` class — the top-level entry point. Orchestrates all calculations for a given city across projection years and produces the output DataFrame. |
+| `buildings.py` | Buildings sector: converts electricity and NG consumption (MMBtu) to MT CO₂e. Mirrors the Excel "Buildings" tab. |
+| `transport.py` | Transportation sector: four-step pipeline from VMT allocation → VMT projection → fuel consumption → MT CO₂. Mirrors the Excel "Transport" tab. |
+| `findings.py` | Aggregation: combines buildings + transport into city-level totals. Mirrors the Excel "Findings" tab. |
+| `emissions.py` | Shared unit conversion helpers (MMBtu → MWh, MWh → MT CO₂, gallons → MT CO₂). |
+| `data_loader.py` | Loads all input CSVs and AEO tables. Provides lookup helpers for carbon intensity, MPG, and LDV sales shares. |
+| `config.py` | All constants and city mappings: emission factors, VMT growth rate, LDV/HDV shares, AEO region assignments, projection year range. |
+| `output.py` | CSV and Excel export. |
+| `versions/` | Snapshot of modules before the AFDC/biodiesel refactor, kept for audit trail. |
+
+**Calculation flow:**
+
+```
+City.run_all_years()
+  ├── buildings_emissions(year)
+  │     ├── Electricity: MMBtu × 0.3 → MWh × regional CI → MT CO₂
+  │     └── Natural Gas: MMBtu × 0.05306 → MT CO₂e
+  └── transport_emissions(year)
+        ├── FHWA VMT × (1.006)^(year−2024) → projected total VMT
+        ├── total VMT × AFDC fuel share → VMT by fuel type
+        ├── VMT / AEO MPG (car/truck + freight) → fuel consumption
+        └── fuel consumption × EPA emission factor → MT CO₂
+```
+
+---
+
+### `bps/` — Building Performance Standards
+
+Calculates GHG savings from building performance standard policies. Supports two policy types modeled from real city programs:
+
+- **Retrocommissioning** (Philadelphia BEPP): staggered efficiency bins with a two-cycle renewal. Buildings in each bin achieve a savings rate in their first cycle, then again at renewal. Savings compound across cycles.
+- **Benchmarking** (Kansas City Energy Empowerment Ordinance): year-over-year consumption reduction from a single policy bin with no renewal. Carbon intensity uses the prior year's value.
+
+| Module | Role |
+|--------|------|
+| `config.py` | BPS constants and policy parameters. |
+| `data_loader.py` | Loads city building stock areas, baseline consumption, and AEO carbon intensity. |
+| `calculator.py` | Core logic for both policy types: baselines → reductions → annual energy and GHG savings by bin. |
+
+---
+
+### `brese/` — Building Energy Code Savings
+
+Implements the DOE Building Energy Code Emissions Calculator logic, estimating GHG and cost savings from building energy code adoption (IECC 2024 / ASHRAE 90.1-2025) across 11 SEEA states. All states modeled adopt the new code in 2026; projections run through 2040.
+
+| Module | Role |
+|--------|------|
+| `config.py` | BRESE constants: discount rate (5%), compliance rate (75%), NPV horizon, eGrid vintage, GWP values. |
+| `data_loader.py` | Loads pre-computed cost-benefit, electricity avoided, and NG avoided CSVs from the DOE calculator. |
+| `calculator_logic.py` | Documents the full DOE SEEA calculation chain, verified across all 11 states (SC, NC, GA, AL, FL, VA, LA, KY, TN, AR, MS). |
+
+---
+
+### `scripts/` — Command-Line Tools
+
+| Script | What it does |
+|--------|-------------|
+| `run_model.py` | Run the IAM for one city, a subset, or all 25. |
+| `run_bps.py` | Run the BPS module for Philadelphia or Kansas City. |
+| `compare_versions.py` | Compare Excel vs. Python transport emissions across cities and years. |
+| `compare_transport.py` | Alternate Excel vs. Python transport comparison. |
+| `compare_cities.py` | Side-by-side emissions, savings rankings, and trajectories across cities. |
+| `build_transport_tabs.py` | Generate a "Transport (City-Specific)" Excel tab for all 25 cities. |
+| `plot_5city_forecast.py` | 3-panel figure: emissions decline, grid CI decline, sector contribution (2027–2035). |
+| `plot_5city_forecast_normalized.py` | Normalized version of the 5-city forecast. |
+| `plot_transport_fuel_mix.py` | Fuel mix trend over time and per-city comparison (2027 vs. 2050). |
+| `plot_brese_takeaways.py` | BRESE key takeaways across SEEA states. |
+| `plot_brese_energy_avoided.py` | BRESE electricity and NG avoided by state. |
+
+---
+
+## Further Reading
+
+| Document | Description |
+|----------|-------------|
+| `USAGE_GUIDE.md` | Setup, running the model, output format, data inputs, customization, adding a new city |
+| `docs/transport_refactoring.md` | Full Excel-to-Python translation: formula chain, data files, validation, change log |
