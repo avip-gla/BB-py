@@ -1,0 +1,22 @@
+parameter,value,notes
+existing_public_chargers,16312,Existing public EVSE ports in Atlanta metro (Electrification Coalition baseline)
+new_chargers_phase1,776,New chargers deployed by end of Phase 1 (2031)
+phase1_year,2031,Year Phase 1 deployment completes
+new_chargers_phase2,333,Additional chargers deployed by end of Phase 2 (2035)
+phase2_year,2035,Year Phase 2 deployment completes
+charger_scale_factor,3.0,Multiplier applied to new charger ratio (3x effect on VMT shift)
+fleet_ldv_city,2654,City-owned light-duty vehicles
+fleet_mdv_city,631,City-owned medium-duty vehicles
+fleet_hdv_city,384,City-owned heavy-duty vehicles
+fleet_ldv_airport,285,Airport-owned light-duty vehicles
+fleet_mdv_airport,151,Airport-owned medium-duty vehicles
+fleet_hdv_airport,65,Airport-owned heavy-duty vehicles
+fleet_ldv_init_2026,50,LDV fleet vehicles already electrified in 2026 (base year)
+fleet_mdv_init_2026,0,MDV fleet vehicles already electrified in 2026
+fleet_hdv_init_2026,12,HDV fleet vehicles already electrified in 2026
+pct_zev_2035,0.50,Target fraction of fleet electrified by 2035
+pct_zev_2040,1.00,Target fraction of fleet electrified by 2040
+savings_ldv_mt_co2,2.73,Annual GHG savings per electrified LDV (MT CO2/vehicle/yr)
+savings_mdv_mt_co2,12.18,Annual GHG savings per electrified MDV (MT CO2/vehicle/yr)
+savings_hdv_mt_co2,21.13,Annual GHG savings per electrified HDV (MT CO2/vehicle/yr)
+base_year,2026,First year of the projection (charger ramp starts here)

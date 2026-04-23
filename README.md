@@ -1,8 +1,8 @@
 # Baseline-Builder-py
 
-A Python model for calculating GHG emissions baselines and savings across 25 US cities, covering the **Buildings** and **Transportation** sectors from 2027 to 2050.
+A Python model for calculating GHG emissions and other policy impacts from baseline for energy, emissions and cost savings across 25 US cities, based on a specific policy. The Business as Usual (bau) covering the **Buildings** and **Transportation** sectors from 2026 to 2050.
 
-This is a Python refactor of an Excel-based Integrated Assessment Model (IAM). The Python version adds city-specific transport calculations validated against the original Excel formulas, and includes two supplementary policy modules (BPS and BRESE).
+This is a Python refactor from the original Excel-based Baseline Module. The Python version adds city-specific building and transport calculations validated against the original Excel formulas, and includes supplementary policy modules BPS (Building Performance Standard), ECU (Energy Code Update) and EVE or EV Electrification.
 
 For setup, installation, and usage instructions see **[USAGE_GUIDE.md](USAGE_GUIDE.md)**.
 
