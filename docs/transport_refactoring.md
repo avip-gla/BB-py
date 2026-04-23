@@ -131,10 +131,10 @@ The Python implementation addresses all limitations of the Excel model:
 
 Four core Python modules implement the transport pipeline:
 
-- **`iam/transport.py`** -- Core transport calculation functions: VMT allocation by fuel type, year-over-year projection, fuel consumption calculation, and emissions estimation.
-- **`iam/city.py`** -- The City class that orchestrates the full calculation pipeline from data loading through emissions output.
-- **`iam/config.py`** -- All constants, city-to-region mappings, city-to-state mappings, VMT growth rates, and emission factors.
-- **`iam/data_loader.py`** -- CSV loading and lookup functions that separate data access from calculation logic.
+- **`bau/transport.py`** -- Core transport calculation functions: VMT allocation by fuel type, year-over-year projection, fuel consumption calculation, and emissions estimation.
+- **`bau/city.py`** -- The City class that orchestrates the full calculation pipeline from data loading through emissions output.
+- **`bau/config.py`** -- All constants, city-to-region mappings, city-to-state mappings, VMT growth rates, and emission factors.
+- **`bau/data_loader.py`** -- CSV loading and lookup functions that separate data access from calculation logic.
 
 ### Data Files Extracted from Excel
 
@@ -160,7 +160,7 @@ Four core Python modules implement the transport pipeline:
 
 ## 4. Python Module Reference
 
-### iam/transport.py -- Core Transport Calculations
+### bau/transport.py -- Core Transport Calculations
 
 This module contains the pure calculation functions that form the transport emissions pipeline:
 
@@ -174,7 +174,7 @@ This module contains the pure calculation functions that form the transport emis
 
 - **`calculate_transport_savings(emissions_base, emissions_projected)`** -- Calculates the difference between baseline and projected emissions to determine GHG savings.
 
-### iam/city.py -- City Class
+### bau/city.py -- City Class
 
 The City class is the central abstraction that ties together data and calculations:
 
@@ -186,7 +186,7 @@ The City class is the central abstraction that ties together data and calculatio
 
 - **`City._get_projected_vmt()`** -- Returns cached VMT projections. The `_transport_vmt_cache` attribute avoids redundant recomputation when emissions are calculated for multiple years.
 
-### iam/config.py -- Configuration and Constants
+### bau/config.py -- Configuration and Constants
 
 All constants and mapping tables are centralized here:
 
@@ -198,7 +198,7 @@ All constants and mapping tables are centralized here:
 - **`EMISSION_FACTORS_KG_CO2`** -- EPA emission factors in kilograms of CO2 per unit of fuel.
 - **`LDV_SHARE`** (0.9) and **`HDV_SHARE`** (0.1) -- Light-duty and heavy-duty vehicle VMT split.
 
-### iam/data_loader.py -- Data Loading
+### bau/data_loader.py -- Data Loading
 
 All file I/O is isolated in this module:
 

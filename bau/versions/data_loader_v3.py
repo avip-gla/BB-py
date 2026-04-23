@@ -14,7 +14,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Optional
 
-from iam.config import (
+from bau.config import (
     INPUTS_DIR, AEO_DIR, CITIES_DIR, ELECTRICITY_DIR, NG_DIR,
     CITY_REGION_MAP, CITY_STATE_MAP, PROJECTION_YEARS,
     CITY_AEO_SALES_REGION_MAP,

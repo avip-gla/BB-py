@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
 # --- Load data ---
-elec = pd.read_csv("data/inputs/brese/electricity_avoided.csv")
-ng = pd.read_csv("data/inputs/brese/ng_avoided.csv")
+elec = pd.read_csv("data/inputs/ecu/electricity_avoided.csv")
+ng = pd.read_csv("data/inputs/ecu/ng_avoided.csv")
 
 # Sort states by 2040 cumulative electricity (largest first)
 elec_2040 = elec[elec["year"] == 2040].set_index("state")["cumulative_mwh_avoided"]

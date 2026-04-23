@@ -19,8 +19,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 
-from iam.buildings import calculate_total_buildings_emissions
-from iam.emissions import calculate_trend
+from bau.buildings import calculate_total_buildings_emissions
+from bau.emissions import calculate_trend
 
 
 def calculate_findings_for_year(

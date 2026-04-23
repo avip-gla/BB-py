@@ -228,7 +228,7 @@ The test suite (17 tests) validates:
 
 ## 8. Troubleshooting
 
-### "ModuleNotFoundError: No module named 'iam'"
+### "ModuleNotFoundError: No module named 'bau'"
 Make sure you are running scripts from the project root directory:
 ```bash
 cd /path/to/baseline-builder-py
@@ -271,11 +271,11 @@ The model's emissions calculations are organized as pure functions in separate m
 ### Architecture Overview
 
 ```
-City.run_all_years()                   # iam/city.py — orchestrates everything
-  ├── City.buildings_emissions(year)   # calls into iam/buildings.py
+City.run_all_years()                   # bau/city.py — orchestrates everything
+  ├── City.buildings_emissions(year)   # calls into bau/buildings.py
   │     ├── Electricity: MMBtu → MWh → MT CO2 (using regional carbon intensity)
   │     └── Natural Gas: MMBtu → MT CO2e (using fixed emission factor)
-  └── City.transport_emissions(year)   # calls into iam/transport.py
+  └── City.transport_emissions(year)   # calls into bau/transport.py
         ├── VMT allocation by fuel type (AFDC state shares)
         ├── VMT projection (AEO growth rates)
         ├── Fuel consumption (VMT / MPG)
@@ -284,7 +284,7 @@ City.run_all_years()                   # iam/city.py — orchestrates everything
 
 ### Buildings Sector
 
-**File:** `iam/buildings.py`
+**File:** `bau/buildings.py`
 
 Buildings emissions are the sum of electricity emissions and natural gas emissions, calculated separately for residential and commercial sectors.
 
@@ -292,31 +292,31 @@ Buildings emissions are the sum of electricity emissions and natural gas emissio
 
 | Function | Location | What it does |
 |----------|----------|-------------|
-| `calculate_electricity_emissions()` | `iam/buildings.py:34` | Converts electricity MMBtu → MWh → MT CO2 using carbon intensity |
-| `calculate_ng_emissions()` | `iam/buildings.py:63` | Converts NG MMBtu → MT CO2e using fixed emission factor |
-| `calculate_total_buildings_emissions()` | `iam/buildings.py:186` | Combines res + com electricity + NG into total |
-| `calculate_residential_savings()` | `iam/buildings.py:87` | Savings = base year emissions - projected year emissions |
-| `calculate_commercial_savings()` | `iam/buildings.py:141` | Same as residential but for commercial sector |
+| `calculate_electricity_emissions()` | `bau/buildings.py:34` | Converts electricity MMBtu → MWh → MT CO2 using carbon intensity |
+| `calculate_ng_emissions()` | `bau/buildings.py:63` | Converts NG MMBtu → MT CO2e using fixed emission factor |
+| `calculate_total_buildings_emissions()` | `bau/buildings.py:186` | Combines res + com electricity + NG into total |
+| `calculate_residential_savings()` | `bau/buildings.py:87` | Savings = base year emissions - projected year emissions |
+| `calculate_commercial_savings()` | `bau/buildings.py:141` | Same as residential but for commercial sector |
 
 #### How to Change Buildings Logic
 
 **Change the electricity emission factor (carbon intensity):**
-Carbon intensity comes from AEO projections by region. To use a different source, modify the data in `data/aeo/` or change the lookup in `iam/data_loader.py` (`get_carbon_intensity()`).
+Carbon intensity comes from AEO projections by region. To use a different source, modify the data in `data/aeo/` or change the lookup in `bau/data_loader.py` (`get_carbon_intensity()`).
 
 **Change the natural gas emission factor:**
-Edit `NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU` in `iam/config.py` (currently `0.05306`).
+Edit `NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU` in `bau/config.py` (currently `0.05306`).
 
 **Change the MMBtu-to-MWh conversion:**
-Edit `MWH_PER_MMBTU` in `iam/config.py` (currently `0.3`).
+Edit `MWH_PER_MMBTU` in `bau/config.py` (currently `0.3`).
 
 **Add a new buildings sub-sector (e.g., industrial):**
 1. Add consumption data CSV under `data/inputs/`
-2. Create a new calculation function in `iam/buildings.py` following the pattern of `calculate_residential_savings()`
+2. Create a new calculation function in `bau/buildings.py` following the pattern of `calculate_residential_savings()`
 3. Update `calculate_total_buildings_emissions()` to include the new sub-sector
-4. Update `City.buildings_emissions()` in `iam/city.py` to incorporate the new data
+4. Update `City.buildings_emissions()` in `bau/city.py` to incorporate the new data
 
 **Change the electricity emissions formula:**
-Edit `calculate_electricity_emissions()` in `iam/buildings.py`. The current formula is:
+Edit `calculate_electricity_emissions()` in `bau/buildings.py`. The current formula is:
 ```python
 # Current: emissions = MMBtu * 0.3 (MWh/MMBtu) * carbon_intensity (MT CO2/MWh)
 mwh = electricity_mmbtu * MWH_PER_MMBTU
@@ -325,7 +325,7 @@ emissions_mt_co2 = mwh * carbon_intensity
 
 ### Transportation Sector
 
-**File:** `iam/transport.py`
+**File:** `bau/transport.py`
 
 Transportation emissions follow a 4-step pipeline: VMT allocation → VMT projection → fuel consumption → emissions.
 
@@ -333,41 +333,41 @@ Transportation emissions follow a 4-step pipeline: VMT allocation → VMT projec
 
 | Function | Location | What it does |
 |----------|----------|-------------|
-| `calculate_initial_vmt_by_fuel()` | `iam/transport.py:37` | Splits total VMT by fuel type using AFDC state shares |
-| `project_vmt()` | `iam/transport.py:78` | Projects VMT forward using AEO annual growth rates |
-| `calculate_fuel_consumption()` | `iam/transport.py:142` | Converts VMT → gallons/MWh using AEO MPG tables |
-| `calculate_transport_emissions()` | `iam/transport.py:306` | Converts fuel consumption → MT CO2 using EPA emission factors |
-| `calculate_transport_savings()` | `iam/transport.py:354` | Savings = base year - projected year |
+| `calculate_initial_vmt_by_fuel()` | `bau/transport.py:37` | Splits total VMT by fuel type using AFDC state shares |
+| `project_vmt()` | `bau/transport.py:78` | Projects VMT forward using AEO annual growth rates |
+| `calculate_fuel_consumption()` | `bau/transport.py:142` | Converts VMT → gallons/MWh using AEO MPG tables |
+| `calculate_transport_emissions()` | `bau/transport.py:306` | Converts fuel consumption → MT CO2 using EPA emission factors |
+| `calculate_transport_savings()` | `bau/transport.py:354` | Savings = base year - projected year |
 
 #### How to Change Transportation Logic
 
 **Change VMT growth rate:**
-Edit `NATIONAL_VMT_GROWTH_RATE` in `iam/config.py` (currently `0.006`, i.e., 0.6%/year flat national growth from FHWA). Total VMT grows at this flat rate; fuel-type allocation evolves using AFDC share deltas.
+Edit `NATIONAL_VMT_GROWTH_RATE` in `bau/config.py` (currently `0.006`, i.e., 0.6%/year flat national growth from FHWA). Total VMT grows at this flat rate; fuel-type allocation evolves using AFDC share deltas.
 
 **Change AFDC fuel share evolution:**
 Edit `data/inputs/afdc_growth_deltas.csv` to change how fuel shares evolve over time. Each row is a state, each column is a fuel type. The delta is applied as a fixed step for all future years (not cumulative).
 
 **Change EPA emission factors:**
-Edit `EMISSION_FACTORS_KG_CO2` in `iam/config.py`. Current values (kg CO2 per gallon):
+Edit `EMISSION_FACTORS_KG_CO2` in `bau/config.py`. Current values (kg CO2 per gallon):
 - Motor gasoline: 8.78
 - Diesel: 10.21
 - Ethanol: 5.75
 
 **Change the LDV/HDV split:**
-Edit `LDV_SHARE` and `HDV_SHARE` in `iam/config.py` (currently 0.9 / 0.1).
+Edit `LDV_SHARE` and `HDV_SHARE` in `bau/config.py` (currently 0.9 / 0.1).
 
 **Change the car/truck fraction within LDV:**
-The `car_fraction` and `truck_fraction` parameters in `calculate_fuel_consumption()` (`iam/transport.py`) are dynamically sourced from AEO LDV sales shares by region and year. To use different values, modify the lookup in `City.transport_emissions()` (`iam/city.py`) or the data in `data/aeo/aeo_ldv_sales_shares.csv`.
+The `car_fraction` and `truck_fraction` parameters in `calculate_fuel_consumption()` (`bau/transport.py`) are dynamically sourced from AEO LDV sales shares by region and year. To use different values, modify the lookup in `City.transport_emissions()` (`bau/city.py`) or the data in `data/aeo/aeo_ldv_sales_shares.csv`.
 
 **Add a new fuel type (e.g., hydrogen):**
-1. Add the fuel's VMT growth rate to `VMT_GROWTH_RATES` in `iam/config.py`
-2. Add the fuel's emission factor to `EMISSION_FACTORS_KG_CO2` in `iam/config.py`
-3. Add AFDC share mapping in `calculate_initial_vmt_by_fuel()` (`iam/transport.py`)
-4. Add fuel consumption calculation in `calculate_fuel_consumption()` (`iam/transport.py`)
-5. Add emissions calculation in `calculate_transport_emissions()` (`iam/transport.py`)
+1. Add the fuel's VMT growth rate to `VMT_GROWTH_RATES` in `bau/config.py`
+2. Add the fuel's emission factor to `EMISSION_FACTORS_KG_CO2` in `bau/config.py`
+3. Add AFDC share mapping in `calculate_initial_vmt_by_fuel()` (`bau/transport.py`)
+4. Add fuel consumption calculation in `calculate_fuel_consumption()` (`bau/transport.py`)
+5. Add emissions calculation in `calculate_transport_emissions()` (`bau/transport.py`)
 
 **Change how VMT is projected:**
-Edit `project_vmt()` in `iam/transport.py`. The current formula is flat growth with AFDC share evolution:
+Edit `project_vmt()` in `bau/transport.py`. The current formula is flat growth with AFDC share evolution:
 ```python
 # Current: total_vmt(Y) = total_vmt(2024) * (1.006)^(Y - 2024)
 # fuel_share(Y) = clamp(2024_share + growth_delta, min=0), re-normalized to sum to 1.0
@@ -376,7 +376,7 @@ Edit `project_vmt()` in `iam/transport.py`. The current formula is flat growth w
 
 ### Shared Utilities
 
-**File:** `iam/emissions.py`
+**File:** `bau/emissions.py`
 
 Contains unit conversion helpers used by both sectors:
 
@@ -390,7 +390,7 @@ Contains unit conversion helpers used by both sectors:
 
 ### Constants and Configuration
 
-**File:** `iam/config.py`
+**File:** `bau/config.py`
 
 All hardcoded values are centralized here. Key constants you might want to change:
 
@@ -408,7 +408,7 @@ All hardcoded values are centralized here. Key constants you might want to chang
 
 ### Aggregation Layer
 
-**File:** `iam/findings.py`
+**File:** `bau/findings.py`
 
 This module mirrors the Excel "Findings" tab and pulls buildings + transport together. If you add a new sector (e.g., waste, industrial), update `calculate_findings_for_year()` to include it in the totals.
 
@@ -416,20 +416,20 @@ This module mirrors the Excel "Findings" tab and pulls buildings + transport tog
 
 The architecture is designed so calculation logic can be swapped without touching the City class. For example, to use a different buildings formula:
 
-1. Write your new function in `iam/buildings.py` (or a new module) with the same signature as the existing one
-2. Change the import in `iam/findings.py` or `iam/city.py` to point to your new function
+1. Write your new function in `bau/buildings.py` (or a new module) with the same signature as the existing one
+2. Change the import in `bau/findings.py` or `bau/city.py` to point to your new function
 
 ```python
-# In iam/city.py — swap this import to change buildings calculation
-from iam.buildings import calculate_total_buildings_emissions  # original
-# from iam.buildings_alt import calculate_total_buildings_emissions  # your new version
+# In bau/city.py — swap this import to change buildings calculation
+from bau.buildings import calculate_total_buildings_emissions  # original
+# from bau.buildings_alt import calculate_total_buildings_emissions  # your new version
 ```
 
 ---
 
 ## 10. Data Inputs Reference
 
-All input data lives under `data/`. The model loads these files automatically via `iam/data_loader.py`.
+All input data lives under `data/`. The model loads these files automatically via `bau/data_loader.py`.
 
 ### Directory Layout
 
@@ -543,7 +543,7 @@ The file must have one row with all the columns listed in the City CSV Columns t
 
 ### Step 3: Add to Config Maps
 
-Edit `iam/config.py` and add entries to both maps:
+Edit `bau/config.py` and add entries to both maps:
 
 ```python
 # In CITY_REGION_MAP — maps city to its AEO electricity market region

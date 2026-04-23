@@ -3,15 +3,15 @@
 Calculates GHG emissions reductions from city-level building performance
 policies such as Philadelphia's Building Energy Performance Program (BEPP).
 
-This module is separate from iam/buildings.py which models BAU baseline
+This module is separate from bau/buildings.py which models BAU baseline
 emissions. BPS models the *additional* savings from policy interventions
 (e.g., retrocommissioning tune-ups) applied to commercial building stock
 segmented by building area bins.
 
-Shared data sources with iam/:
+Shared data sources with bau/:
   - AEO regional carbon intensity (data/aeo/aeo_carbon_intensity.csv)
   - SLOPE commercial consumption baselines (data/inputs/electricity/, data/inputs/ng/)
-  - Emission factors (NG_EMISSION_FACTOR, MWH_PER_MMBTU from iam.config)
+  - Emission factors (NG_EMISSION_FACTOR, MWH_PER_MMBTU from bau.config)
 
 BPS-specific data:
   - SLOPE building area thresholds per city (data/inputs/bps/<city>.csv)

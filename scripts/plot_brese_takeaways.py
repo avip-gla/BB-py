@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
 # --- Load data ---
-cb = pd.read_csv("data/inputs/brese/cost_benefit_summary.csv")
-elec = pd.read_csv("data/inputs/brese/electricity_avoided.csv")
+cb = pd.read_csv("data/inputs/ecu/cost_benefit_summary.csv")
+elec = pd.read_csv("data/inputs/ecu/electricity_avoided.csv")
 
 # Derived columns
 cb["net_benefit"] = cb["savings_total"] - cb["costs_total"]

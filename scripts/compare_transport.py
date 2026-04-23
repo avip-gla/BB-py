@@ -14,9 +14,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd
-from iam.config import CITIES, PROJECTION_YEARS
-from iam.data_loader import load_all_data
-from iam.city import City
+from bau.config import CITIES, PROJECTION_YEARS
+from bau.data_loader import load_all_data
+from bau.city import City
 
 
 def build_comparison(cities: list, years: list, all_data: dict) -> pd.DataFrame:

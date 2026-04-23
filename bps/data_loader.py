@@ -1,12 +1,12 @@
 """BPS data loading module.
 
 Loads BPS-specific data (SLOPE building area thresholds) and pulls shared
-consumption baselines from the same SLOPE source files used by iam/.
+consumption baselines from the same SLOPE source files used by bau/.
 
 Data sources:
   BPS-specific:
     - data/inputs/bps/<city>.csv — SLOPE building area thresholds
-  Shared with iam/ (same underlying SLOPE extractions):
+  Shared with bau/ (same underlying SLOPE extractions):
     - data/inputs/electricity/electricity_commercial_consumption.csv
     - data/inputs/ng/ng_commercial_consumption.csv
     - data/aeo/aeo_carbon_intensity.csv
@@ -22,7 +22,7 @@ from bps.config import (
     SLOPE_MAX_KNOWN_THRESHOLD,
     SLOPE_PROJECTION_TARGET,
 )
-from iam.config import INPUTS_DIR, AEO_DIR
+from bau.config import INPUTS_DIR, AEO_DIR
 
 
 def load_slope_areas(city: str, path: Optional[str] = None) -> pd.DataFrame:
@@ -131,7 +131,7 @@ def load_commercial_electricity_consumption(
     """Load commercial electricity consumption (MMBtu) by year for a city.
 
     Source: Excel 'Electricity' tab R168-R192 (commercial MMBtu).
-    Same SLOPE data used by iam/buildings.py.
+    Same SLOPE data used by bau/buildings.py.
 
     Args:
         city: City name.
@@ -160,7 +160,7 @@ def load_commercial_ng_consumption(
 
     Source: Excel 'NG' tab R115-R140 (commercial MMBtu).
     Uses the wide-format CSV with columns y2024-y2050 for full year coverage.
-    Same SLOPE data used by iam/buildings.py.
+    Same SLOPE data used by bau/buildings.py.
 
     Args:
         city: City name.
@@ -188,7 +188,7 @@ def load_carbon_intensity(
     """Load AEO regional carbon intensity (MT CO2/MWh) by year.
 
     Source: AEO Table 54 via data/aeo/aeo_carbon_intensity.csv.
-    Same data used by iam/buildings.py.
+    Same data used by bau/buildings.py.
 
     Args:
         region: AEO electricity market region code (e.g., 'PJME').

@@ -9,14 +9,14 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from iam.config import CITY_REGION_MAP, NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU, MWH_PER_MMBTU
-from iam.buildings import (
+from bau.config import CITY_REGION_MAP, NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU, MWH_PER_MMBTU
+from bau.buildings import (
     calculate_electricity_emissions,
     calculate_ng_emissions,
 )
-from iam.emissions import mmbtu_to_mwh, ng_mmbtu_to_mt_co2e
-from iam.data_loader import load_all_data
-from iam.city import City
+from bau.emissions import mmbtu_to_mwh, ng_mmbtu_to_mt_co2e
+from bau.data_loader import load_all_data
+from bau.city import City
 
 
 class TestEmissionFactors:
@@ -164,7 +164,7 @@ class TestCityIntegration:
         For year 2027 (future), shares = 2024_share + delta, clamped >= 0, normalized.
         The delta is fixed (not cumulative) — same adjustment for all future years.
         """
-        from iam.transport import project_vmt
+        from bau.transport import project_vmt
 
         afdc_shares = {"gasoline": 0.85, "electric": 0.05, "diesel": 0.10}
         afdc_deltas = {"gasoline": -0.02, "electric": 0.015, "diesel": 0.005}
@@ -214,7 +214,7 @@ class TestCityIntegration:
         For 2027: car = 42.12 MPG, truck = 31.94 MPG.
         These are looked up via the vehicle_class column in aeo_mpg.csv.
         """
-        from iam.data_loader import get_mpg
+        from bau.data_loader import get_mpg
         car_mpg = get_mpg("Gasoline ICE Vehicles", 2027, all_data["aeo_mpg"], vehicle_class="car")
         truck_mpg = get_mpg("Gasoline ICE Vehicles", 2027, all_data["aeo_mpg"], vehicle_class="truck")
         assert car_mpg == pytest.approx(42.124, rel=1e-3)
@@ -227,7 +227,7 @@ class TestCityIntegration:
         Source: AEO tab R50 (SPPC carbon intensity).
         Kansas City uses region SPPC, which previously fell back to MISC.
         """
-        from iam.data_loader import get_carbon_intensity
+        from bau.data_loader import get_carbon_intensity
         ci = get_carbon_intensity("SPPC", 2027, all_data["aeo_ci"])
         assert ci == pytest.approx(0.3687, rel=1e-3)
 
@@ -241,7 +241,7 @@ class TestCityIntegration:
 
     def test_all_cities_load(self, all_data):
         """Verify all 25 cities can be loaded and run."""
-        from iam.config import CITIES
+        from bau.config import CITIES
         for city_name in CITIES:
             city = City(name=city_name, all_data=all_data)
             total = city.total_emissions(2027)

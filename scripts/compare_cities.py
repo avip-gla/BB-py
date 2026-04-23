@@ -14,9 +14,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pandas as pd
 import numpy as np
 
-from iam.config import CITIES
-from iam.city import City
-from iam.data_loader import load_all_data
+from bau.config import CITIES
+from bau.city import City
+from bau.data_loader import load_all_data
 
 
 def format_number(val: float, decimals: int = 0) -> str:

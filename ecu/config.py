@@ -9,12 +9,12 @@ See calculator_logic.py for full calculation chain documentation.
 from pathlib import Path
 from typing import Dict
 
-from iam.config import PROJECT_ROOT, INPUTS_DIR
+from bau.config import PROJECT_ROOT, INPUTS_DIR
 
 # ============================================================
 # Paths
 # ============================================================
-BRESE_DATA_DIR = INPUTS_DIR / "brese"
+BRESE_DATA_DIR = INPUTS_DIR / "ecu"
 BRESE_SOURCE_XLSX = Path(
     "/Users/apurkayastha/GLA/projects/brese/SEEA/BRESE-cost-benefit-analysis.xlsx"
 )

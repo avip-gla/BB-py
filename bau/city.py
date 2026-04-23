@@ -18,21 +18,21 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 
-from iam.config import (
+from bau.config import (
     CITY_REGION_MAP, CITY_STATE_MAP, PROJECTION_YEARS, BASE_YEAR,
     CITY_AEO_SALES_REGION_MAP,
 )
-from iam.data_loader import (
+from bau.data_loader import (
     load_all_data, load_city_data, get_carbon_intensity, get_mpg,
     load_buildings_emissions, load_electricity_emissions, load_ng_emissions,
     load_transport_emissions, get_ldv_sales_share,
 )
-from iam.buildings import calculate_total_buildings_emissions
-from iam.transport import (
+from bau.buildings import calculate_total_buildings_emissions
+from bau.transport import (
     calculate_initial_vmt_by_fuel, project_vmt,
     calculate_fuel_consumption, calculate_transport_emissions,
 )
-from iam.findings import (
+from bau.findings import (
     calculate_findings_for_year, calculate_trends,
     calculate_savings_series, findings_to_dataframe,
 )
@@ -134,8 +134,8 @@ class City:
     def _get_transport_emissions_from_data(self, year: int) -> float:
         """Look up pre-calculated transport emissions from the extracted CSV data.
 
-        The Transport tab in Excel calculates emissions for the reference city
-        (Atlanta). The values in transport_emissions.csv are for that reference city.
+        The Transport tab in Excel recalculates for whichever city is selected
+        in the Findings tab. The values in transport_emissions.csv reflect this.
 
         Source: Excel 'Transport' tab R4.
 
@@ -230,6 +230,10 @@ class City:
         The FHWA data is already scaled from urbanized area to city proper
         using population ratios (scalar = city_proper_pop / census_pop).
 
+        The Excel model does this correctly via XLOOKUP(B41, FHWA!A9:A33, ...)
+        where B41 = Findings!B3 (the city name). The Python implementation
+        replicates this using fhwa_vmt.csv.
+
         Returns:
             Total annual VMT for this city.
         """
@@ -243,14 +247,66 @@ class City:
         # Excel formula: =XLOOKUP(city, FHWA!A:A, FHWA!AB:AB) * 1000
         return float(row["total_annual_vmt"].iloc[0]) * 1000
 
+    def _get_afdc_shares_and_deltas(self) -> tuple:
+        """Get this city's state AFDC 2024 shares and growth deltas as dicts.
+
+        Extracts the relevant state row from the AFDC DataFrames and returns
+        fuel-type-keyed dicts suitable for project_vmt().
+
+        Returns:
+            Tuple of (shares_dict, deltas_dict) mapping fuel type -> value.
+        """
+        self._ensure_data()
+
+        # AFDC share column -> internal fuel type mapping
+        col_map = {
+            "gasoline": "conventional_gasoline",
+            "diesel": "tdi_diesel",
+            "ethanol_flex_e85": "flex_fuel",
+            "electric_ev": "electric",
+            "plug-in_hybrid_electric_phev": "plugin_hybrid",
+            "hybrid_electric_hev": "electric_hybrid",
+            "biodiesel": "biodiesel",
+        }
+
+        # Get 2024 shares for this state
+        shares_df = self.data["afdc_shares"]
+        if "year" in shares_df.columns:
+            state_shares = shares_df[
+                (shares_df["state"] == self.state) & (shares_df["year"] == 2024)
+            ]
+        else:
+            state_shares = shares_df[shares_df["state"] == self.state]
+
+        if state_shares.empty:
+            raise ValueError(f"State '{self.state}' not found in AFDC shares data")
+        state_shares = state_shares.iloc[0]
+
+        shares_dict = {}
+        for csv_col, fuel_key in col_map.items():
+            shares_dict[fuel_key] = float(state_shares.get(csv_col, 0))
+
+        # Get growth deltas for this state
+        deltas_df = self.data["afdc_growth_deltas"]
+        state_deltas = deltas_df[deltas_df["state"] == self.state]
+        if state_deltas.empty:
+            raise ValueError(f"State '{self.state}' not found in AFDC growth deltas")
+        state_deltas = state_deltas.iloc[0]
+
+        deltas_dict = {}
+        for csv_col, fuel_key in col_map.items():
+            deltas_dict[fuel_key] = float(state_deltas.get(csv_col, 0))
+
+        return shares_dict, deltas_dict
+
     def _get_projected_vmt(self) -> pd.DataFrame:
         """Get projected VMT by fuel type for all projection years.
 
-        Caches the result since VMT projections depend only on base-year VMT
-        and growth rates (same for all query years within a city).
+        Caches the result since VMT projections depend only on base-year VMT,
+        AFDC shares, and growth deltas (same for all query years within a city).
 
-        Source: Excel 'Transport' tab R44-R50.
-        Flow: FHWA total VMT -> AFDC fuel split -> AEO growth rates -> projected VMT.
+        Source: Excel 'Transport' tab R44-R51.
+        Flow: FHWA total VMT -> flat 0.6% growth -> AFDC share evolution -> projected VMT.
 
         Returns:
             DataFrame with year rows and vmt_* fuel-type columns.
@@ -260,10 +316,10 @@ class City:
 
         self._ensure_data()
         total_vmt = self._get_city_vmt()
-        initial_vmt = calculate_initial_vmt_by_fuel(
-            total_vmt, self.state, self.data["afdc_shares"]
+        afdc_shares, afdc_deltas = self._get_afdc_shares_and_deltas()
+        self._transport_vmt_cache = project_vmt(
+            total_vmt, afdc_shares, afdc_deltas, PROJECTION_YEARS
         )
-        self._transport_vmt_cache = project_vmt(initial_vmt, PROJECTION_YEARS)
         return self._transport_vmt_cache
 
     def transport_emissions(self, year: int) -> float:
@@ -281,6 +337,11 @@ class City:
         Excel formula chain:
           R44 (total VMT) -> R45-R50 (VMT by fuel, projected) ->
           R13-R16 (fuel consumption) -> R7-R10 (emissions by fuel) -> R4 (total)
+
+        The Excel model handles per-city lookups correctly via dynamic cell
+        references (B41=city, B42=state, B43=region from Findings tab). The
+        Python implementation replicates this using FHWA, AFDC, and AEO data
+        with CITY_STATE_MAP and CITY_REGION_MAP for the lookups.
 
         Args:
             year: Projection year (2027-2050).
@@ -305,6 +366,7 @@ class City:
             "electric": year_row["vmt_electric"],
             "plugin_hybrid": year_row["vmt_plugin_hybrid"],
             "electric_hybrid": year_row["vmt_electric_hybrid"],
+            "biodiesel": year_row.get("vmt_biodiesel", 0),
         }
 
         # Step 4: Look up car/truck LDV sales shares for this city's region and year

@@ -12,7 +12,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from brese.config import BRESE_DATA_DIR, BRESE_SOURCE_XLSX, STATE_TABS, STATE_INFO
+from ecu.config import BRESE_DATA_DIR, BRESE_SOURCE_XLSX, STATE_TABS, STATE_INFO
 
 
 def _find_row(ws, col: int, text: str, start: int = 1, end: int = 40) -> Optional[int]:

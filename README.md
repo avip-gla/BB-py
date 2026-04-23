@@ -24,9 +24,9 @@ For each city, the model calculates annual GHG emissions and savings across two 
 
 ```
 baseline-builder-py/
-├── iam/          # Core IAM model (buildings + transport calculations)
+├── bau/          # Core IAM model (buildings + transport calculations)
 ├── bps/          # Building Performance Standards policy module
-├── brese/        # Building Energy Code Savings (DOE BRESE) module
+├── ecu/        # Building Energy Code Savings (DOE BRESE) module
 ├── scripts/      # Command-line tools: run, compare, plot
 ├── tests/        # Test suite (17 tests)
 ├── data/
@@ -39,7 +39,7 @@ baseline-builder-py/
 
 ## Module Overview
 
-### `iam/` — Core IAM Model
+### \`bau/\` — Business As Usual Baseline Model
 
 The main calculation package. Each module has a single responsibility:
 
@@ -86,13 +86,13 @@ Calculates GHG savings from building performance standard policies. Supports two
 
 ---
 
-### `brese/` — Building Energy Code Savings
+### `ecu/` — Building Energy Code Savings
 
 Implements the DOE Building Energy Code Emissions Calculator logic, estimating GHG and cost savings from building energy code adoption (IECC 2024 / ASHRAE 90.1-2025) across 11 SEEA states. All states modeled adopt the new code in 2026; projections run through 2040.
 
 | Module | Role |
 |--------|------|
-| `config.py` | BRESE constants: discount rate (5%), compliance rate (75%), NPV horizon, eGrid vintage, GWP values. |
+| `config.py` | ECU constants: discount rate (5%), compliance rate (75%), NPV horizon, eGrid vintage, GWP values. |
 | `data_loader.py` | Loads pre-computed cost-benefit, electricity avoided, and NG avoided CSVs from the DOE calculator. |
 | `calculator_logic.py` | Documents the full DOE SEEA calculation chain, verified across all 11 states (SC, NC, GA, AL, FL, VA, LA, KY, TN, AR, MS). |
 
@@ -111,8 +111,8 @@ Implements the DOE Building Energy Code Emissions Calculator logic, estimating G
 | `plot_5city_forecast.py` | 3-panel figure: emissions decline, grid CI decline, sector contribution (2027–2035). |
 | `plot_5city_forecast_normalized.py` | Normalized version of the 5-city forecast. |
 | `plot_transport_fuel_mix.py` | Fuel mix trend over time and per-city comparison (2027 vs. 2050). |
-| `plot_brese_takeaways.py` | BRESE key takeaways across SEEA states. |
-| `plot_brese_energy_avoided.py` | BRESE electricity and NG avoided by state. |
+| `plot_brese_takeaways.py` | ECU key takeaways across SEEA states. |
+| `plot_brese_energy_avoided.py` | ECU electricity and NG avoided by state. |
 
 ---
 

@@ -64,7 +64,7 @@ baseline-builder-py/
 ├── outputs/                   # GHG results as CSV and Excel
 │   ├── csv/
 │   └── xlsx/
-├── iam/                       # Main Python package
+├── bau/                       # Main Python package
 │   ├── __init__.py
 │   ├── config.py              # Global constants, city mappings, VMT growth rate
 │   ├── data_loader.py         # Load fixed, city, AEO, AFDC data
@@ -97,9 +97,9 @@ baseline-builder-py/
 
 | Excel Tab       | Python Module / File         | Role |
 |----------------|------------------------------|------|
-| `Findings`      | `iam/findings.py`            | Top-level GHG savings aggregation by city and year |
-| `Buildings`     | `iam/buildings.py`           | Residential & commercial building emissions lookups and calcs |
-| `Transport`     | `iam/transport.py`           | Transportation sector emissions lookups and calcs |
+| `Findings`      | `bau/findings.py`            | Top-level GHG savings aggregation by city and year |
+| `Buildings`     | `bau/buildings.py`           | Residential & commercial building emissions lookups and calcs |
+| `Transport`     | `bau/transport.py`           | Transportation sector emissions lookups and calcs |
 | `Transport (City-Specific)` | `scripts/build_transport_tabs.py` | Generated tab: city-specific transport emissions |
 | `Electricity`   | `data/inputs/electricity/`   | City-level electricity usage data |
 | `NG`            | `data/inputs/ng/`            | City-level natural gas usage data |
@@ -113,7 +113,7 @@ baseline-builder-py/
 Each city is represented as a `City` object that holds both fixed and localized data, and exposes methods to calculate sector-level emissions.
 
 ```python
-# iam/city.py
+# bau/city.py
 class City:
     def __init__(self, name: str, fixed_data: dict, city_data: dict):
         self.name = name
@@ -140,7 +140,7 @@ Each sector module contains the calculation logic extracted from the Excel model
 - **Pure functions where possible** — take inputs, return outputs, no hidden state
 
 ```python
-# iam/buildings.py
+# bau/buildings.py
 def calculate_residential_savings(city_data: dict, fixed_data: dict, aeo: dict, year: int) -> float:
     """
     Calculate GHG savings from residential buildings for a given city and year.
@@ -165,7 +165,7 @@ All core calculation functions should be imported into `findings.py` via a **str
 
 ```python
 # findings.py example
-from iam.buildings import calculate_residential_savings   # swap this line to change logic
+from bau.buildings import calculate_residential_savings   # swap this line to change logic
 ```
 
 ### 4. Data Loader
@@ -175,14 +175,14 @@ Separates data loading from calculation logic. Supports loading:
 - AEO tables
 
 ```python
-# iam/data_loader.py
+# bau/data_loader.py
 def load_fixed_data(path: str) -> dict: ...
 def load_city_data(city_name: str, data_dir: str) -> dict: ...
 def load_aeo(path: str) -> dict: ...
 ```
 
 ### 5. Output Layer
-All output formatting lives in `iam/output.py`. Supports:
+All output formatting lives in `bau/output.py`. Supports:
 - Single city CSV export
 - Multi-city comparison CSV (cities as columns or rows)
 - Excel `.xlsx` export with formatted sheets
@@ -289,7 +289,7 @@ pytest tests/test_findings.py -v
 
 - **Type hints** on all function signatures
 - **Docstrings** on every function — include the Excel tab/row reference where the logic originates
-- **No hardcoded values** inside functions — all constants go in `iam/config.py`
+- **No hardcoded values** inside functions — all constants go in `bau/config.py`
 - **pandas DataFrames** for tabular data (city energy usage, AEO projections)
 - **dicts** for city parameters and fixed data
 - **numpy** for any matrix or vectorized numerical operations

@@ -10,7 +10,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Optional
 
-from iam.config import OUTPUTS_DIR
+from bau.config import OUTPUTS_DIR
 
 
 def export_single_city_csv(

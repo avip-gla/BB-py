@@ -2,12 +2,12 @@
 
 Contains city-specific policy definitions and constants that are unique
 to BPS calculations. Shared constants (emission factors, conversion factors)
-are imported from iam.config.
+are imported from bau.config.
 """
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from iam.config import (
+from bau.config import (
     PROJECT_ROOT,
     INPUTS_DIR,
     NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU,

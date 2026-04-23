@@ -27,7 +27,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Optional
 
-from iam.config import (
+from bau.config import (
     LDV_SHARE, HDV_SHARE, KWH_PER_GALLON_GASOLINE,
     EMISSION_FACTORS_KG_CO2, VMT_GROWTH_RATES,
     PROJECTION_YEARS, BASE_YEAR,

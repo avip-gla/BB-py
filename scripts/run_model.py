@@ -13,10 +13,10 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from iam.config import CITIES
-from iam.city import City
-from iam.data_loader import load_all_data
-from iam.output import export_single_city_csv, export_multi_city_csv, export_xlsx
+from bau.config import CITIES
+from bau.city import City
+from bau.data_loader import load_all_data
+from bau.output import export_single_city_csv, export_multi_city_csv, export_xlsx
 
 
 def main() -> None:

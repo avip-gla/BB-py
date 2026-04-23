@@ -24,7 +24,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
-from iam.config import (
+from bau.config import (
     NG_EMISSION_FACTOR_MT_CO2_PER_MMBTU,
     MWH_PER_MMBTU,
     PROJECTION_YEARS,

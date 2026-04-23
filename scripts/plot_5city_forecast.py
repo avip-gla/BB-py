@@ -10,8 +10,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
-from iam.data_loader import load_all_data, get_carbon_intensity
-from iam.config import CITY_REGION_MAP
+from bau.data_loader import load_all_data, get_carbon_intensity
+from bau.config import CITY_REGION_MAP
 
 # --- Data Setup ---
 cities = ["Atlanta", "Charlotte", "Nashville", "Cleveland", "Philadelphia"]

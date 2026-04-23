@@ -12,10 +12,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from iam.city import City
-from iam.config import CITY_REGION_MAP, CITY_AEO_SALES_REGION_MAP
-from iam.data_loader import load_all_data, get_carbon_intensity, get_ldv_sales_share
-from iam.transport import project_vmt, calculate_fuel_consumption, calculate_transport_emissions
+from bau.city import City
+from bau.config import CITY_REGION_MAP, CITY_AEO_SALES_REGION_MAP
+from bau.data_loader import load_all_data, get_carbon_intensity, get_ldv_sales_share
+from bau.transport import project_vmt, calculate_fuel_consumption, calculate_transport_emissions
 
 CITIES = ["Atlanta", "Charlotte", "Nashville", "Cleveland", "Philadelphia"]
 YEARS = list(range(2027, 2051))
@@ -45,7 +45,7 @@ def get_fuel_emissions_series(city_name: str, all_data: dict) -> pd.DataFrame:
         DataFrame with columns [year, gasoline_mt_co2, diesel_mt_co2,
         ethanol_mt_co2, electricity_mt_co2, total_mt_co2].
     """
-    from iam.config import CITY_STATE_MAP, CITY_REGION_MAP
+    from bau.config import CITY_STATE_MAP, CITY_REGION_MAP
 
     state = CITY_STATE_MAP[city_name]
     region = CITY_REGION_MAP[city_name]

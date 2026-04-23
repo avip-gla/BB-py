@@ -21,13 +21,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd
 
-from iam.config import (
+from bau.config import (
     CITIES, CITY_REGION_MAP, CITY_STATE_MAP,
     PROJECTION_YEARS, CITY_AEO_SALES_REGION_MAP,
 )
-from iam.data_loader import load_all_data, get_carbon_intensity, get_ldv_sales_share
-from iam.city import City
-from iam.transport import (
+from bau.data_loader import load_all_data, get_carbon_intensity, get_ldv_sales_share
+from bau.city import City
+from bau.transport import (
     calculate_fuel_consumption, calculate_transport_emissions,
 )
 
