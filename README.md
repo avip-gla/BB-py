@@ -98,6 +98,24 @@ Implements the DOE Building Energy Code Emissions Calculator logic, estimating G
 
 ---
 
+### `eve/` — EV Electrification
+
+Estimates GHG savings from two EV electrification interventions, modeled from the Electrification Coalition Analysis for Atlanta and generalizable to any city.
+
+- **Charger deployment**: a two-phase public charger rollout shifts VMT from gasoline to electric, scaled by a multiplier proportional to new chargers deployed relative to the existing stock. Savings are computed relative to the BAU transport trajectory.
+- **Fleet electrification**: city and airport fleet vehicles (LDV, MDV, HDV) are electrified along a linear ramp to ZEV targets (50% by 2035, 100% by 2040). Annual savings = cumulative ramp vehicles × per-vehicle annual GHG savings.
+
+| Module | Role |
+|--------|------|
+| `config.py` | EVE paths and projection year range (2026–2050). |
+| `data_loader.py` | Loads city CSV inputs and pulls BAU transport series from `bau`. |
+| `charger_calculator.py` | Two-phase charger multiplier → VMT shift → ΔCO2 relative to BAU. |
+| `fleet_calculator.py` | Linear two-phase vehicle ramp (2026→2035→2040) → annual fleet GHG savings. |
+
+City-specific inputs (charger counts, fleet sizes, ramp targets, per-vehicle savings rates) live in `data/inputs/eve/<city>.csv`. To model a new city, add a CSV following the Atlanta template.
+
+---
+
 ### `scripts/` — Command-Line Tools
 
 | Script | What it does |
@@ -113,6 +131,7 @@ Implements the DOE Building Energy Code Emissions Calculator logic, estimating G
 | `plot_transport_fuel_mix.py` | Fuel mix trend over time and per-city comparison (2027 vs. 2050). |
 | `plot_brese_takeaways.py` | ECU key takeaways across SEEA states. |
 | `plot_brese_energy_avoided.py` | ECU electricity and NG avoided by state. |
+| `run_eve.py` | Run the EVE module for a city: charger + fleet savings, 2026–2050. |
 
 ---
 

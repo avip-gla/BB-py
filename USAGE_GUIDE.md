@@ -264,7 +264,43 @@ The `--plot` flag saves to `outputs/comparison_plot.png` rather than displaying 
 
 ---
 
-## 9. Customizing GHG Calculation Logic
+## 9. Running the EVE (EV Electrification) Module
+
+The EVE module estimates GHG savings from public charger deployment and city/airport fleet electrification. City-specific inputs are loaded from `data/inputs/eve/<city>.csv`.
+
+### Run for Atlanta
+
+```bash
+python scripts/run_eve.py --city Atlanta
+```
+
+This prints an annual savings table (2026–2050) with charger savings, fleet savings, and the combined total, plus cumulative savings over the full period.
+
+### With detailed breakdown
+
+```bash
+python scripts/run_eve.py --city Atlanta --detail
+```
+
+Prints the full charger detail (multiplier, shifted VMT, ΔCO2 by fuel type) and fleet detail (cumulative ramp vehicles by class) in addition to the summary.
+
+### Save output to CSV
+
+```bash
+python scripts/run_eve.py --city Atlanta --output outputs/csv/eve_atlanta.csv
+```
+
+**Output columns:** `city`, `year`, `charger_savings_mt_co2`, `fleet_savings_mt_co2`, `total_eve_savings_mt_co2`
+
+### Adding a new city
+
+1. Create `data/inputs/eve/<city_lowercase>.csv` using `data/inputs/eve/atlanta.csv` as a template.
+2. Ensure the city exists in `bau/config.py` (`CITY_STATE_MAP`, `CITY_REGION_MAP`) so BAU transport data can be pulled.
+3. Run `python scripts/run_eve.py --city <CityName>`.
+
+---
+
+## 10. Customizing GHG Calculation Logic
 
 The model's emissions calculations are organized as pure functions in separate modules. This section explains where each calculation lives and how to modify it.
 
@@ -427,7 +463,7 @@ from bau.buildings import calculate_total_buildings_emissions  # original
 
 ---
 
-## 10. Data Inputs Reference
+## 11. Data Inputs Reference
 
 All input data lives under `data/`. The model loads these files automatically via `bau/data_loader.py`.
 
@@ -443,6 +479,8 @@ data/
 │   ├── afdc_vehicle_shares.csv           # Vehicle registration shares by state/fuel type (2023 & 2024)
 │   ├── afdc_growth_deltas.csv            # AFDC share deltas (2024 − 2023) by state
 │   ├── emission_factors.csv              # EPA emission factors (kg CO2 per unit by fuel)
+│   ├── eve/                              # EVE city-specific inputs
+│   │   └── atlanta.csv                  # Charger deployment, fleet sizes, ramp targets
 │   ├── buildings_total_emissions.csv     # Pre-calculated buildings emissions (city × year)
 │   ├── transport_emissions.csv           # Pre-calculated transport emissions (year only)
 │   ├── transport_vmt_by_fuel.csv         # VMT projections by fuel type (year only)
@@ -516,7 +554,7 @@ Each file in `data/inputs/cities/` contains one row with these fields:
 
 ---
 
-## 11. How to Add a New City
+## 12. How to Add a New City
 
 To add a 26th (or Nth) city to the model:
 
