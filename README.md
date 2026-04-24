@@ -116,6 +116,26 @@ City-specific inputs (charger counts, fleet sizes, ramp targets, per-vehicle sav
 
 ---
 
+### `sol/` — Residential Solar
+
+Estimates annual energy cost savings and GHG emissions avoided from residential rooftop solar installations. Designed for a general program model: any city with a PVWatts production estimate, a utility rate, and a household count can be added with a single CSV.
+
+- **Per-city solar resource**: annual AC output from a 5 kW PVWatts baseline system, degraded at 0.5%/yr.
+- **Scale-up**: actual installed system size (kW) and number of program households scale per-5kW metrics to full program totals.
+- **Energy savings**: annual production × city-specific electricity rate (from EIA Electric Power Monthly), escalated annually.
+- **GHG avoided**: annual production × AEO regional carbon intensity (same source as BAU model).
+- **City groups**: multiple cities can be averaged (e.g. 6 OH cities) then scaled to a shared HH pool.
+
+| Module | Role |
+|--------|------|
+| `config.py` | SOL paths, default year range (2026–2035), city group definitions. |
+| `data_loader.py` | Loads city CSV inputs and AEO carbon intensity. |
+| `calculator.py` | `compute_city_solar()` (per-5kW metrics) + `scale_to_program()` (average + scale). |
+
+City-specific inputs (PVWatts base production, electricity rate, escalation, AEO region) live in `data/inputs/sol/<city>.csv`. To model a new city, create a CSV with five parameters and optionally add the city to a group in `config.py`.
+
+---
+
 ### `scripts/` — Command-Line Tools
 
 | Script | What it does |
@@ -132,6 +152,7 @@ City-specific inputs (charger counts, fleet sizes, ramp targets, per-vehicle sav
 | `plot_brese_takeaways.py` | ECU key takeaways across SEEA states. |
 | `plot_brese_energy_avoided.py` | ECU electricity and NG avoided by state. |
 | `run_eve.py` | Run the EVE module for a city: charger + fleet savings, 2026–2050. |
+| `run_sol.py` | Run the SOL module for a city group or single city: solar energy + GHG savings. |
 
 ---
 

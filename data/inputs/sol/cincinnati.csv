@@ -1,0 +1,6 @@
+parameter,value,notes
+base_kwh_5kw,7267,Annual AC output of a 5 kW PVWatts system (kWh/yr)
+elec_rate_2026,0.165,Base residential electricity rate in 2026 ($/kWh); Duke Energy Ohio
+elec_rate_escalation,0.035,Annual nominal rate escalation (3.5%/yr); higher reflects DEOK zone history
+aeo_region,PJMW,AEO carbon intensity region
+degradation_rate,0.005,PVWatts standard 0.5%/yr panel degradation

@@ -3,8 +3,12 @@
 Estimates GHG savings from electrifying city and airport vehicle fleets
 (light-duty, medium-duty, heavy-duty) along a linear ramp schedule.
 
-Calculation chain (verified against Atlanta - Electrification Coalition
-Analysis.xlsx, "Fleet Electrification" sheet):
+All inputs are city-specific and loaded from data/inputs/eve/<city>.csv.
+No VMT data is used here — fleet savings depend only on vehicle counts
+and per-vehicle annual savings rates.
+
+Calculation chain (logic verified against Atlanta - Electrification Coalition
+Analysis.xlsx "Fleet" sheet; same formula applies to any city):
 
   Fleet totals:
     total_ldv = fleet_ldv_city + fleet_ldv_airport
@@ -151,16 +155,15 @@ def compute_fleet_savings(
     for yr in years:
         r_ldv, r_mdv, r_hdv = ramp_vehicles(yr)
 
-        if yr == base_year:
-            # 2026: count the pre-electrified init vehicles only (once).
-            # Matches Excel: Annual_2026 = init_ldv*2.73 + init_hdv*21.13
-            savings = init_ldv * sv_ldv + init_mdv * sv_mdv + init_hdv * sv_hdv
-        else:
-            # 2027+: annual savings = cumulative ramp vehicles × per-vehicle rate.
-            # The ramp accumulates each year so this grows over time, matching
-            # Excel row 10 formula: =(C14*$B4)+(C15*$C4)+(C16*$D4).
-            # Note: the 2026 init vehicles are NOT re-counted here (Excel choice).
-            savings = r_ldv * sv_ldv + r_mdv * sv_mdv + r_hdv * sv_hdv
+        # Annual savings = (init vehicles + cumulative ramp vehicles) × per-vehicle rate.
+        # Init vehicles are counted every year from base_year onwards — they remain
+        # electrified and save emissions continuously.
+        # Ramp vehicles accumulate over time (0 in base_year, growing thereafter).
+        savings = (
+            (init_ldv + r_ldv) * sv_ldv
+            + (init_mdv + r_mdv) * sv_mdv
+            + (init_hdv + r_hdv) * sv_hdv
+        )
 
         rows.append({
             "year":                 yr,

@@ -1,0 +1,6 @@
+parameter,value,notes
+base_kwh_5kw,7141,Annual AC output of a 5 kW PVWatts system (kWh/yr)
+elec_rate_2026,0.163,Base residential electricity rate in 2026 ($/kWh)
+elec_rate_escalation,0.030,Annual nominal rate escalation (3%/yr)
+aeo_region,PJMW,AEO carbon intensity region
+degradation_rate,0.005,PVWatts standard 0.5%/yr panel degradation

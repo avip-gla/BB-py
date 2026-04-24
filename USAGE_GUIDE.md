@@ -300,7 +300,73 @@ python scripts/run_eve.py --city Atlanta --output outputs/csv/eve_atlanta.csv
 
 ---
 
-## 10. Customizing GHG Calculation Logic
+## 10. Running the SOL (Solar) Module
+
+The SOL module estimates energy cost savings and GHG emissions avoided from residential rooftop solar installations. It is designed to be general: any city can be added with a single CSV. City inputs are loaded from `data/inputs/sol/<city>.csv`.
+
+### Run a named city group
+
+```bash
+# OH + Pittsburgh PA (6 cities, 5500 HH, 16.3 kW/home)
+python scripts/run_sol.py --group oh
+
+# Hampton and Newport News, VA (52 HH, 5 kW/home)
+python scripts/run_sol.py --group va
+```
+
+Groups average the per-5kW production metrics across all member cities, then scale to the full program (system_kw × num_households). This matches the methodology in the GLA Priority Modeling Excel.
+
+### Run a single city (per-household output)
+
+```bash
+python scripts/run_sol.py --city akron
+```
+
+### Custom city list with explicit program parameters
+
+```bash
+python scripts/run_sol.py --cities akron cleveland --system-kw 16.3 --households 5500
+```
+
+### Custom year range
+
+```bash
+# Extend projection to 2050 (default is 2026–2035)
+python scripts/run_sol.py --group oh --end-year 2050
+```
+
+### Save output to CSV
+
+```bash
+python scripts/run_sol.py --group oh --output outputs/csv/solar_oh.csv
+python scripts/run_sol.py --group va --output outputs/csv/solar_va.csv
+```
+
+**Output columns (group mode):** `year`, `avg_annual_kwh_5kw`, `avg_annual_mwh_5kw`, `avg_elec_rate`, `avg_annual_savings_usd_5kw`, `avg_ghg_avoided_mt_5kw`, `scale_factor`, `num_households`, `total_annual_kwh`, `total_annual_mwh`, `total_annual_savings_usd`, `total_cumulative_savings_usd`, `total_ghg_avoided_mt`
+
+### Adding a new city
+
+1. Run PVWatts (pvwatts.nrel.gov) for the city with a 5 kW system, south-facing, 20° tilt, 14% system losses. Note the annual AC output (kWh/yr).
+2. Find the city's residential electricity rate from EIA Electric Power Monthly (state/utility-specific).
+3. Identify the AEO carbon intensity region (e.g., `PJMW`, `PJMD`, `SRSE` — same region as used in the BAU model).
+4. Create `data/inputs/sol/<city>.csv`:
+
+```csv
+parameter,value,notes
+base_kwh_5kw,6800,Annual AC output of a 5 kW PVWatts system (kWh/yr)
+elec_rate_2026,0.162,Base residential electricity rate in 2026 ($/kWh)
+elec_rate_escalation,0.030,Annual nominal rate escalation (3%/yr)
+aeo_region,PJMW,AEO carbon intensity region
+degradation_rate,0.005,PVWatts standard 0.5%/yr panel degradation
+```
+
+5. Run standalone: `python scripts/run_sol.py --city <city>` or add to a group in `sol/config.py`.
+
+**Note on electricity rates:** The SOL module uses city/utility-specific rates from EIA Electric Power Monthly, not the AEO national average (Table 3). The AEO national residential rate (~$0.167/kWh) is close for most OH cities (-1 to -3%) but misses Pittsburgh (+20%) and other utilities with rates far from the national average.
+
+---
+
+## 11. Customizing GHG Calculation Logic
 
 The model's emissions calculations are organized as pure functions in separate modules. This section explains where each calculation lives and how to modify it.
 
@@ -463,7 +529,7 @@ from bau.buildings import calculate_total_buildings_emissions  # original
 
 ---
 
-## 11. Data Inputs Reference
+## 12. Data Inputs Reference
 
 All input data lives under `data/`. The model loads these files automatically via `bau/data_loader.py`.
 
@@ -480,7 +546,16 @@ data/
 │   ├── afdc_growth_deltas.csv            # AFDC share deltas (2024 − 2023) by state
 │   ├── emission_factors.csv              # EPA emission factors (kg CO2 per unit by fuel)
 │   ├── eve/                              # EVE city-specific inputs
-│   │   └── atlanta.csv                  # Charger deployment, fleet sizes, ramp targets
+│   │   ├── atlanta.csv                  # Charger deployment, fleet sizes, ramp targets
+│   │   └── charlotte.csv
+│   ├── sol/                              # SOL city-specific solar inputs
+│   │   ├── akron.csv                    # PVWatts base production, electricity rate, AEO region
+│   │   ├── cincinnati.csv
+│   │   ├── cleveland.csv
+│   │   ├── columbus.csv
+│   │   ├── dayton.csv
+│   │   ├── hampton.csv
+│   │   └── pittsburgh.csv
 │   ├── buildings_total_emissions.csv     # Pre-calculated buildings emissions (city × year)
 │   ├── transport_emissions.csv           # Pre-calculated transport emissions (year only)
 │   ├── transport_vmt_by_fuel.csv         # VMT projections by fuel type (year only)
@@ -554,7 +629,7 @@ Each file in `data/inputs/cities/` contains one row with these fields:
 
 ---
 
-## 12. How to Add a New City
+## 13. How to Add a New City
 
 To add a 26th (or Nth) city to the model:
 

@@ -1,0 +1,22 @@
+parameter,value,notes
+existing_public_chargers,1,Placeholder (no charger deployment policy for Charlotte)
+new_chargers_phase1,0,No charger deployment in Phase 1
+phase1_year,2031,Phase 1 end year (unused since new_chargers_phase1=0)
+new_chargers_phase2,0,No charger deployment in Phase 2
+phase2_year,2035,Phase 2 end year (unused since new_chargers_phase2=0)
+charger_scale_factor,3.0,Standard scale factor (unused)
+fleet_ldv_city,25,City LDV fleet to electrify
+fleet_mdv_city,0,No MDV fleet electrification
+fleet_hdv_city,25,City HDV fleet to electrify
+fleet_ldv_airport,0,No airport fleet
+fleet_mdv_airport,0,No airport fleet
+fleet_hdv_airport,0,No airport fleet
+fleet_ldv_init_2026,25,All 25 LDV acquired by December 2026
+fleet_mdv_init_2026,0,No MDV
+fleet_hdv_init_2026,25,All 25 HDV acquired by December 2026
+pct_zev_2035,1.00,100% already achieved by 2026 — no further ramp needed
+pct_zev_2040,1.00,100% of fleet electrified
+savings_ldv_mt_co2,2.73,Annual GHG savings per electrified LDV (MT CO2/vehicle/yr)
+savings_mdv_mt_co2,12.18,Annual GHG savings per electrified MDV (MT CO2/vehicle/yr)
+savings_hdv_mt_co2,21.13,Annual GHG savings per electrified HDV (MT CO2/vehicle/yr)
+base_year,2026,Year all fleet vehicles are acquired

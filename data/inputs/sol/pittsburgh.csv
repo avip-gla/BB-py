@@ -1,0 +1,6 @@
+parameter,value,notes
+base_kwh_5kw,6827,Annual AC output of a 5 kW PVWatts system (kWh/yr)
+elec_rate_2026,0.200,Base residential electricity rate in 2026 ($/kWh); Duquesne Light / PA state avg
+elec_rate_escalation,0.030,Annual nominal rate escalation (3%/yr)
+aeo_region,PJMW,AEO carbon intensity region (Pittsburgh is in PJMW not PJME)
+degradation_rate,0.005,PVWatts standard 0.5%/yr panel degradation

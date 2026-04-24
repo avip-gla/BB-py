@@ -1,0 +1,6 @@
+parameter,value,notes
+base_kwh_5kw,6200,Annual AC output of a 5 kW PVWatts system (kWh/yr); Hampton VA (GHI=4.37 kWh/m2/day)
+elec_rate_2026,0.160,Base residential electricity rate in 2026 ($/kWh); Dominion Energy VA
+elec_rate_escalation,0.030,Annual nominal rate escalation (3%/yr)
+aeo_region,PJMD,AEO carbon intensity region
+degradation_rate,0.005,PVWatts standard 0.5%/yr panel degradation
